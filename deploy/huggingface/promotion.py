@@ -185,7 +185,7 @@ def prepare(api, bucket, space, candidate_id, request_id, work):
     write_json(work / "deployment.json", {"oldHead": old_head, "release": candidate_id})
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
         print("ready=true", file=output)
-    print(f"Validation loss {active_score:.5f} → {candidate_score:.5f}")
+    print(f"Validation loss improved from {active_score:.5f} to {candidate_score:.5f}")
 
 
 def publish(api, bucket, space, work, trial):
