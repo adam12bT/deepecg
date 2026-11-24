@@ -1,0 +1,68 @@
+name: SleepOps cloud training
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_epochs:
+        description: Maximum epochs (1–20, with validation-based early stopping)
+        type: number
+        default: 20
+      evaluate_test:
+        description: Score the selected checkpoint on the held-out test set
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  train:
+    name: Train and store a private candidate
+    if: ${{ github.ref == format('refs/heads/{0}', vars.SLEEPOPS_DEPLOY_BRANCH || 'main') && vars.SLEEPOPS_HF_BUCKET != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: sleepops-cloud-training
+      cancel-in-progress: false
+    env:
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            deploy/huggingface/requirements.txt
+      - run: python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.6.0
+      - run: python -m pip install '.[train]' -r deploy/huggingface/requirements.txt
+      - name: Restore the locked EEG archive from DVC
+        env:
+          HF_TOKEN: ${{ secrets.HF_DEPLOY_TOKEN }}
+          SLEEPOPS_HF_BUCKET: ${{ vars.SLEEPOPS_HF_BUCKET }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo '::error::Set the HF_DEPLOY_TOKEN repository secret before training.'
+            exit 1
+          fi
+          python deploy/huggingface/release.py pull-data --bucket "$SLEEPOPS_HF_BUCKET"
+      - name: Fit and validate the model
+        id: fit
+        env:
+          MAX_EPOCHS: ${{ inputs.max_epochs }}
+          EVALUATE_TEST: ${{ inputs.evaluate_test }}
+        run: |
+          flags=()
+          if [ "$EVALUATE_TEST" = true ]; then
+            flags+=(--evaluate-test)
+          fi
+          python -m deploy.huggingface.cloud_train fit --epochs "$MAX_EPOCHS" "${flags[@]}"
+      - name: Upload and verify the candidate in the private bucket
+        env:
+          HF_TOKEN: ${{ secrets.HF_DEPLOY_TOKEN }}
+          SLEEPOPS_HF_BUCKET: ${{ vars.SLEEPOPS_HF_BUCKET }}
+          CANDIDATE_ID: ${{ steps.fit.outputs.candidate }}
+        run: python -m deploy.huggingface.cloud_train publish --bucket "$SLEEPOPS_HF_BUCKET" --run "$CANDIDATE_ID"

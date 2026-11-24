@@ -31,6 +31,10 @@ The intended GitHub source is `adam12bT/deepecg`. Configure the following reposi
 
 The first deployment seeds the private bucket with the local archive and checkpoint. For later releases, seed new DVC objects before pushing updated pointers and locks to the deployment branch. The job restores and validates the exact dataset and checkpoint, re-publishes their verified DVC objects, updates the Docker Space, and waits for live checks. [GitHub Actions secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 
+### Cloud training
+
+Run **SleepOps cloud training** on the deployment branch from the GitHub Actions tab. The manual launch button appears when the workflow exists on the repository's default branch. Cloud training reuses the bucket setting and `HF_DEPLOY_TOKEN` above. It restores the DVC-pinned archive and saves each candidate's weights, normalizer, loss history, validation comparison, and optional held-out test report in `training-runs/<run-id>/` in the private bucket. The production checkpoint is versioned independently through its existing DVC pointer and release workflow. [GitHub manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+
 ### Reuse the existing `assistance` Space
 
 The following command is for the owner-approved takeover of the existing app. It preserves the old remote revision on a `before-sleepops-…` branch, verifies private visibility before uploading, and replaces the working tree in one commit. The commit is conditional on the old revision still being the head. To roll back in a clone of the Space, revert the SleepOps deployment commit and push the revert to `main`.

@@ -39,6 +39,10 @@ The dashboard accepts `.npy` and headerless `.csv` feature windows. To browse ex
 
 ## Train and release a model
 
+To train entirely online, open **Actions → SleepOps cloud training → Run workflow** on GitHub and select the deployment branch (`sleepops`). Set the maximum epochs and leave held-out test evaluation off while tuning. The hosted CPU runner restores the private DVC archive, validates the dataset lock, and selects the checkpoint by validation loss. The job summary links to the private checkpoint and reports in the Hugging Face bucket under `training-runs/`. A completed training run creates a candidate. Promotion is a separate validation-gated decision.
+
+To train locally, use these commands.
+
 ```sh
 python -m sleepops validate --lock configs/dataset.json
 python -m sleepops train --config configs/train.toml --device auto
