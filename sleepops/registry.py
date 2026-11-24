@@ -6,7 +6,6 @@ import re
 import shutil
 from tempfile import TemporaryDirectory
 
-from eeg_model import load_checkpoint
 from sleepops.files import read_json, sha256, utc_now, write_json
 
 
@@ -59,6 +58,8 @@ def validate_bundle(path):
 
 
 def load_bundle(path):
+    from eeg_model import load_checkpoint
+
     metadata, validation, reference = validate_bundle(path)
     model, mean, scale, checkpoint = load_checkpoint(Path(path) / CHECKPOINT)
     threshold = checkpoint["state_threshold"]
