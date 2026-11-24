@@ -22,6 +22,7 @@ MODEL_LOCK = Path("configs/best_model.json")
 ASSETS = (ARCHIVE, MODEL)
 REMOTE = "hf-bucket"
 PREFIX = "dvc-store"
+DATASET_PREFIX = "dataset-versions"
 SPACE_MARKER = "deploy/huggingface/serve.py"
 DEFAULT_SPACE = "sleepops-cs495"
 DEFAULT_BUCKET = "sleepops-eeg-data"
@@ -300,7 +301,8 @@ def space_target(api, repo_id, profile, *, reuse_existing=False, make_private=Fa
     return existing
 
 
-def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existing=False, make_private=False):
+def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existing=False, make_private=False,
+                  commit_message="Deploy SleepOps with DVC dataset and model locks"):
     from huggingface_hub import CommitOperationAdd, CommitOperationDelete
 
     options = {"reuse_existing": reuse_existing, "make_private": make_private}
@@ -324,7 +326,6 @@ def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existin
     if not api.space_info(repo_id).private:
         raise ValueError(f"The Space {repo_id} must be private before upload.")
 
-    message = "Deploy SleepOps with DVC dataset and model locks"
     if reuse_existing:
         additions = {file.relative_to(staged).as_posix(): file for file in staged.rglob("*") if file.is_file()}
         old_files = set(api.list_repo_files(repo_id, repo_type="space", revision=current_head))
@@ -332,12 +333,13 @@ def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existin
         operations.extend(CommitOperationDelete(path_in_repo=name, is_folder=False)
                           for name in sorted(old_files - additions.keys() - {".gitattributes"}))
         commit = api.create_commit(repo_id, operations, repo_type="space", parent_commit=current_head,
-                                   commit_message=message)
+                                   commit_message=commit_message)
     else:
         commit = api.upload_folder(repo_id=repo_id, repo_type="space", folder_path=staged,
-                                   parent_commit=current_head, commit_message=message)
+                                   parent_commit=current_head, commit_message=commit_message)
     print(f"Uploaded private Space https://huggingface.co/spaces/{repo_id}", flush=True)
     print(f"Space commit {commit.oid}", flush=True)
+    return commit.oid
 
 
 def space_host(info):

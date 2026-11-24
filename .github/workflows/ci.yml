@@ -82,7 +82,13 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_DEPLOY_TOKEN }}
           SLEEPOPS_HF_SPACE: ${{ vars.SLEEPOPS_HF_SPACE }}
           SLEEPOPS_HF_BUCKET: ${{ vars.SLEEPOPS_HF_BUCKET }}
-        run: python deploy/huggingface/release.py deploy --space "$SLEEPOPS_HF_SPACE" --bucket "$SLEEPOPS_HF_BUCKET" --wait-seconds 900
+        run: |
+          latest=$(git ls-remote --exit-code origin "$GITHUB_REF")
+          if [ "${latest%%$'\t'*}" != "$GITHUB_SHA" ]; then
+            echo "A newer commit owns the production deployment."
+            exit 0
+          fi
+          python deploy/huggingface/release.py deploy --space "$SLEEPOPS_HF_SPACE" --bucket "$SLEEPOPS_HF_BUCKET" --wait-seconds 900
       - if: failure()
         run: |
           docker compose logs --no-color
