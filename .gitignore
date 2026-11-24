@@ -10,3 +10,5 @@ build/
 registry/releases/.staging-*/
 /sleep_edf_wake_data.npz
 /best_model.pt
+/frontend/node_modules/
+/frontend/dist/

@@ -259,6 +259,9 @@ def stage(output, build=None, *, github_source=False):
                      if path.is_file() and path.suffix in {".py", ".yml", ".yaml", ".json", ".toml", ".pt",
                                                           ".npz", ".png", ".txt", ".conf"}
                      and "__pycache__" not in path.parts and path.name not in {"huggingface_deployment.json", "build.json"})
+    files.extend(Path("frontend") / name for name in ("package.json", "package-lock.json", "index.html", "vite.config.js"))
+    files.extend(path.relative_to(ROOT) for path in (ROOT / "frontend/src").rglob("*")
+                 if path.is_file() and path.suffix in {".js", ".jsx", ".css"})
     for relative in sorted(files):
         if github_source and (relative.parts[0] in {"artifacts", "reports"} or relative.suffix == ".pt"):
             continue
@@ -355,7 +358,8 @@ def deployed_build_is_healthy(client, host, build):
     tracked = ("build_id", "release_id", "archive_sha256", "checkpoint_sha256")
     if any(details.get(key) != build[key] for key in tracked):
         return False
-    if client.get(host + "/_stcore/health").status_code != 200:
+    frontend = client.get(host + "/")
+    if frontend.status_code != 200 or 'content="sleepops-react"' not in frontend.text:
         return False
     response = client.post(host + "/api/v1/predict", json={"features": [[0.1] * 11 for _ in range(10)]})
     if response.status_code != 200:

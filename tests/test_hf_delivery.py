@@ -13,7 +13,7 @@ class StubClient:
 
     def get(self, url):
         data = self.details if url.endswith("/api/model") else None
-        return SimpleNamespace(status_code=200, json=lambda: data)
+        return SimpleNamespace(status_code=200, json=lambda: data, text='<meta content="sleepops-react">')
 
     def post(self, url, *, json):
         assert url.endswith("/api/v1/predict")

@@ -10,7 +10,7 @@ pinned: false
 
 # CS495 Sleep–Wake Segmentation and Awakening Forecasting from EEG
 
-The project also runs as **SleepOps**, with tracked training, a validation-gated registry, a FastAPI service, and Prometheus monitoring. See the [MLOps guide](MLOPS.md) for commands to train, serve, promote, and roll back a release.
+The project also runs as **SleepOps**, with a React EEG dashboard, tracked training, a validation-gated registry, a FastAPI service, and Prometheus monitoring. See the [MLOps guide](MLOPS.md) for commands to train, serve, promote, and roll back a release.
 
 The [Hugging Face guide](HUGGING_FACE.md) covers the hosted app, private training-data bucket, and DVC commands for restoring the archive.
 
@@ -22,14 +22,16 @@ The [Hugging Face guide](HUGGING_FACE.md) covers the hosted app, private trainin
 
 To regenerate the archive, run `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb` with `MAX_SUBJECTS = None`. It downloads the public Sleep Cassette recordings and exports `/content/sleep_edf_wakeup/sleep_edf_wake_data.npz`. The training notebook detects that path. The project archive was regenerated with the supplied notebook after the original export could not be located. It preserves the preprocessing notebook’s seed-42 subject assignments.
 
-## Run the Streamlit demo
+## Run the React dashboard
 
-Use Python 3.11 or newer. Keep the `artifacts` directory beside `demo.py`, `eeg_data.py`, and `eeg_model.py`.
+Start the bundled dashboard and API with `docker compose up --build --wait`, then open `http://127.0.0.1:8501`. For local development, use Node 24 and Python 3.11 or newer. Start the API from the project root.
 
 ```sh
-python -m pip install -r requirements.txt
-python -m streamlit run demo.py
+python -m pip install -e '.[api]'
+python -m uvicorn sleepops.api:app --host 127.0.0.1 --port 8000
 ```
+
+In a second terminal, run `npm ci --prefix frontend` and `npm run dev --prefix frontend`. In PowerShell, use `npm.cmd` if script execution policy blocks `npm`.
 
 Select a held-out recording and window end, or upload one raw, unscaled feature window as a numeric `.npy` or a headerless `.csv`. It must have 10 rows and 11 columns. Put the oldest 30-second epoch first and end the last row at the prediction time. Use the same EEG channel and per-epoch features as the preprocessing notebook, in this column order.
 

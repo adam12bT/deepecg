@@ -20,15 +20,13 @@ services:
     build:
       context: .
       target: demo
-    environment:
-      SLEEPOPS_API_URL: http://api:8000
     ports:
       - "127.0.0.1:${DEMO_PORT:-8501}:8501"
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2).close()"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8501/"]
       interval: 5s
       timeout: 3s
       retries: 12

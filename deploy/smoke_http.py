@@ -15,13 +15,21 @@ def main():
     with urlopen(base + "/health/ready", timeout=10) as response:
         ready = json.load(response)
     with np.load("artifacts/demo_windows.npz", allow_pickle=False) as examples:
-        payload = {"features": examples["windows"][len(examples["windows"]) // 2].tolist()}
+        i = len(examples["windows"]) // 2
+        payload = {"features": examples["windows"][i].tolist()}
+        record = str(examples["record_id"][i])
+        end = int(examples["epoch_end_sec"][i])
     request = Request(base + "/v1/predict", data=json.dumps(payload).encode(),
                       headers={"Content-Type": "application/json"})
     with urlopen(request, timeout=10) as response:
         prediction = json.load(response)
     assert ready["status"] == "ready" and ready["release_id"] == prediction["release_id"]
     assert len(prediction["asleep_probabilities"]) == 10
+    with urlopen(base + "/v1/demo/recordings", timeout=10) as response:
+        recordings = json.load(response)["recordings"]
+    assert end in next(row["window_ends_sec"] for row in recordings if row["id"] == record)
+    with urlopen(base + f"/v1/demo/recordings/{record}/{end}/prediction", timeout=10) as response:
+        assert json.load(response) == prediction
     if prediction["state"] == "asleep":
         assert len(prediction["forecast"]["bins"]) == 13
     else:

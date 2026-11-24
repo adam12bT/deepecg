@@ -47,8 +47,33 @@ class Prediction(BaseModel):
     forecast: Forecast | None
 
 
-def create_app(registry=None, *, minimum_windows=100, alert_psi=0.25):
+def load_demo_recordings(path, checkpoint):
+    if not path.is_file():
+        return {}
+    with np.load(path, allow_pickle=False) as archive:
+        features = archive["windows"]
+        ids = archive["record_id"]
+        ends = archive["epoch_end_sec"]
+        if (archive["archive_sha256"].item() != checkpoint["archive_sha256"]
+                or tuple(archive["feature_names"]) != FEATURE_NAMES
+                or ids.ndim != 1 or ends.shape != ids.shape
+                or ends.dtype.kind not in "ui" or np.any(ends < HISTORY * EPOCH_SEC)
+                or np.any(ends % EPOCH_SEC != 0)
+                or features.shape != (len(ids), HISTORY, N_FEATURES) or not np.isfinite(features).all()
+                or not set(ids).issubset(checkpoint["test_records"])):
+            raise ValueError("Demo windows must match the model's held-out recording archive.")
+    recordings = {}
+    for record, end, window in zip(ids, ends, features):
+        windows = recordings.setdefault(str(record), {})
+        if int(end) in windows:
+            raise ValueError("Duplicate timestamp in the demo recording archive.")
+        windows[int(end)] = window
+    return recordings
+
+
+def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_psi=0.25):
     registry = Path(registry or os.getenv("SLEEPOPS_REGISTRY", "registry"))
+    demo_path = Path(demo_windows or os.getenv("SLEEPOPS_DEMO_WINDOWS", "artifacts/demo_windows.npz"))
     collectors = CollectorRegistry()
     requests = Counter("sleepops_prediction_requests", "Prediction requests by outcome", ("outcome",),
                        registry=collectors)
@@ -67,6 +92,7 @@ def create_app(registry=None, *, minimum_windows=100, alert_psi=0.25):
         if metadata["run_id"] != path.name:
             raise RuntimeError("The champion pointer disagrees with its release metadata.")
         app.state.model_input = (model, mean, scale)
+        app.state.recordings = load_demo_recordings(demo_path, checkpoint)
         app.state.drift = DriftMonitor(reference, minimum_windows=minimum_windows, alert_psi=alert_psi)
         app.state.details = {"release_id": path.name, "archive_sha256": metadata["archive_sha256"],
                              "checkpoint_sha256": metadata["file_sha256"][CHECKPOINT],
@@ -79,7 +105,7 @@ def create_app(registry=None, *, minimum_windows=100, alert_psi=0.25):
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, error: RequestValidationError):
-        if request.url.path == "/v1/predict":
+        if request.url.path.endswith("/v1/predict"):
             requests.labels("invalid_input").inc()
         return JSONResponse(status_code=422, content={"detail": [
             {"loc": item["loc"], "msg": item["msg"]} for item in error.errors()
@@ -103,14 +129,12 @@ def create_app(registry=None, *, minimum_windows=100, alert_psi=0.25):
                 "feature_names": FEATURE_NAMES, "window_order": "oldest to most recent completed epoch",
                 "forecast_bins": CLASS_LABELS}
 
-    @app.post("/v1/predict", response_model=Prediction)
-    def predict(body: PredictionRequest, request: Request):
+    def predict(window, request):
         started = perf_counter()
         serving = request.app.state
         details = serving.details
         version = details["release_id"]
         threshold = details["state_threshold"]
-        window = np.asarray(body.features, dtype=np.float32)
         try:
             p_sleep, probabilities = predict_window(*serving.model_input, window)
             if not np.isfinite(p_sleep).all() or not np.isfinite(probabilities).all():
@@ -135,6 +159,22 @@ def create_app(registry=None, *, minimum_windows=100, alert_psi=0.25):
         requests.labels("success").inc()
         return Prediction(release_id=version, state=state, state_threshold=threshold,
                           asleep_probabilities=p_sleep.tolist(), forecast=forecast)
+
+    @app.post("/v1/predict", response_model=Prediction)
+    def predict_features(body: PredictionRequest, request: Request):
+        return predict(np.asarray(body.features, dtype=np.float32), request)
+
+    @app.get("/v1/demo/recordings")
+    def demo_recordings(request: Request):
+        recordings = request.app.state.recordings
+        return {"recordings": [{"id": key, "window_ends_sec": sorted(recordings[key])} for key in sorted(recordings)]}
+
+    @app.get("/v1/demo/recordings/{record_id}/{end_sec}/prediction", response_model=Prediction)
+    def predict_recording(record_id: str, end_sec: int, request: Request):
+        window = request.app.state.recordings.get(record_id, {}).get(end_sec)
+        if window is None:
+            raise HTTPException(404, detail="This held-out recording window is unavailable.")
+        return predict(window, request)
 
     @app.get("/monitor/drift")
     def drift(request: Request):

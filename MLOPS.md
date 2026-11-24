@@ -9,7 +9,7 @@ flowchart LR
     C --> D[Promotion gates]
     D --> E[Versioned registry and active release]
     E --> F[FastAPI inference]
-    F --> G[Streamlit demo]
+    F --> G[React EEG dashboard]
     F --> H[Prometheus metrics]
     E --> I[Final test evaluation]
 ```
@@ -18,24 +18,24 @@ flowchart LR
 
 From the project root with Docker running, use `docker compose up --build --wait`. Open the demo at `http://127.0.0.1:8501`, interactive API docs at `http://127.0.0.1:8000/docs`, and Prometheus at `http://127.0.0.1:9090`. Shut them down with `docker compose down`. The stack binds to loopback, uses the bundled active release, and requires no service credentials.
 
-### Run in Python
+### Run the development servers
 
 With Python 3.11 or newer, create and activate a virtual environment and install the project. For a CPU-only environment, install the CPU PyTorch build first.
 
 ```sh
 python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -e ".[train,api,demo,test]"
+python -m pip install -e ".[train,api,test]"
 python -m uvicorn sleepops.api:app --host 127.0.0.1 --port 8000
 ```
 
-For GPU training, use an environment with CUDA-enabled PyTorch and install the project extras in that environment. In a second terminal, start the demo with `SLEEPOPS_API_URL` pointing to the running API. The commands below use PowerShell. On a POSIX shell, set the same variable with `export SLEEPOPS_API_URL=http://127.0.0.1:8000`.
+For GPU training, use an environment with CUDA-enabled PyTorch and install the project extras in that environment. With Node 24 installed, start the React dashboard in a second terminal. The Vite server proxies `/api` to FastAPI on port 8000. Use `npm.cmd` in PowerShell if script execution policy blocks `npm`.
 
-```powershell
-$env:SLEEPOPS_API_URL = "http://127.0.0.1:8000"
-python -m streamlit run demo.py
+```sh
+npm ci --prefix frontend
+npm run dev --prefix frontend
 ```
 
-Omit the variable to use the original local-checkpoint mode. Both modes accept `.npy` and headerless `.csv` feature windows and include example windows from held-out recordings.
+The dashboard accepts `.npy` and headerless `.csv` feature windows. To browse examples, choose a held-out recording and use the timestamp picker, scrubber, or navigation buttons. The input panel shows the exact five minutes used for the prediction.
 
 ## Train and release a model
 

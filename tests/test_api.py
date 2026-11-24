@@ -58,3 +58,21 @@ def test_health_predictions_schema_and_telemetry(monkeypatch):
         assert 'sleepops_prediction_requests_total{outcome="success"} 2.0' in metrics
         assert 'sleepops_prediction_requests_total{outcome="invalid_input"} 3.0' in metrics
         assert "sleepops_prediction_seconds_bucket" in metrics and "sleepops_feature_psi" in metrics
+
+
+@pytest.mark.serving_assets
+def test_recording_catalog_returns_predictions_without_exposing_feature_arrays():
+    with np.load(ROOT / "artifacts" / "demo_windows.npz", allow_pickle=False) as data:
+        recording = str(data["record_id"][0])
+        end_sec = int(data["epoch_end_sec"][0])
+        sample = data["windows"][0].tolist()
+    app = create_app(ROOT / "registry", demo_windows=ROOT / "artifacts" / "demo_windows.npz")
+    with TestClient(app) as client:
+        catalog = client.get("/v1/demo/recordings").json()["recordings"]
+        assert all(set(item) == {"id", "window_ends_sec"} for item in catalog)
+        assert end_sec in next(item["window_ends_sec"] for item in catalog if item["id"] == recording)
+        selected = client.get(f"/v1/demo/recordings/{recording}/{end_sec}/prediction")
+        uploaded = client.post("/v1/predict", json={"features": sample})
+        assert selected.status_code == uploaded.status_code == 200
+        assert selected.json() == uploaded.json()
+        assert client.get(f"/v1/demo/recordings/{recording}/0/prediction").status_code == 404

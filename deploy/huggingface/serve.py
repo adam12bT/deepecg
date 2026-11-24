@@ -1,4 +1,4 @@
-"""Run the API and Streamlit behind the Space's single HTTP port."""
+"""Serve the API and built React dashboard on the Space's single HTTP port."""
 
 import json
 import os
@@ -17,7 +17,6 @@ def main():
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    os.environ.setdefault("SLEEPOPS_API_URL", "http://127.0.0.1:8000")
     build_file = Path(__file__).with_name("build.json")
     if build_file.is_file():
         os.environ["SLEEPOPS_BUILD_ID"] = json.loads(build_file.read_text(encoding="utf-8"))["build_id"]
@@ -25,8 +24,6 @@ def main():
     services = (
         (sys.executable, "-m", "uvicorn", "sleepops.api:app", "--host", "127.0.0.1", "--port", "8000",
          "--root-path", "/api"),
-        (sys.executable, "-m", "streamlit", "run", "demo.py", "--server.address=127.0.0.1",
-         "--server.port=8501", "--server.headless=true", "--browser.gatherUsageStats=false"),
         ("nginx", "-c", str(nginx), "-g", "daemon off;"),
     )
     processes = []

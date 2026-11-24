@@ -1,6 +1,6 @@
 # SleepOps on Hugging Face
 
-The deployment uses a private CPU Docker Space for the Streamlit demo and FastAPI service. DVC versions the prepared EEG training archive and the promoted checkpoint. A separate private Hugging Face Storage Bucket holds both files. The Space upload contains their DVC pointers and checksums, the source code, the serving checkpoint, and the held-out demo windows.
+The deployment uses a private CPU Docker Space for the React dashboard and FastAPI service. DVC versions the prepared EEG training archive and the promoted checkpoint. A separate private Hugging Face Storage Bucket holds both files. The Space upload contains their DVC pointers and checksums, the source code, the serving checkpoint, and the held-out demo windows.
 
 ## Deploy from this repository
 
