@@ -13,7 +13,6 @@ from tempfile import TemporaryDirectory
 from huggingface_hub import HfApi
 
 from deploy.huggingface import release
-from deploy.huggingface.cloud_train import candidate_files
 from sleepops.files import read_json, utc_now, write_json
 from sleepops.registry import CHECKPOINT, RELEASE_FILES, VERSION_PATTERN
 
@@ -150,11 +149,12 @@ def prepare(api, bucket, space, candidate_id, request_id, work):
     run = work / candidate_id
     run.mkdir()
     prefix = f"training-runs/{candidate_id}"
-    api.download_bucket_files(bucket, [(f"{prefix}/{name}", run / name) for name in candidate_files(False)],
+    required = (*RELEASE_FILES, "training_log.json", "cloud_run.json")
+    api.download_bucket_files(bucket, [(f"{prefix}/{name}", run / name) for name in required],
                               raise_on_missing_files=True)
     run_info = read_json(run / "cloud_run.json")
     if run_info["test_evaluated"]:
-        files = set(candidate_files(True)) - set(candidate_files(False))
+        files = ("test_metrics.json", "heldout_forecast.png")
         api.download_bucket_files(bucket, [(f"{prefix}/{name}", run / name) for name in files],
                                   raise_on_missing_files=True)
     metadata, validation, _ = validate_bundle(run)
