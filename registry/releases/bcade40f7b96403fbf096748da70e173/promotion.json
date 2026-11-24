@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "balanced_accuracy": true,
+    "causality": true,
+    "detection_baseline": true,
+    "forecast_baseline": true,
+    "macro_f1": true,
+    "minimum_validation_subjects": true,
+    "multiclass_log_loss": true,
+    "within_hour_brier": true
+  },
+  "passed": true,
+  "policy": {
+    "max_causality_delta": 1e-05,
+    "max_forecast_brier": 0.255,
+    "max_forecast_log_loss": 1.9,
+    "min_balanced_accuracy": 0.85,
+    "min_macro_f1": 0.87,
+    "min_subjects": 10
+  },
+  "promoted_at": "2026-11-23T23:16:17+00:00"
+}

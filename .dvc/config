@@ -1,0 +1,7 @@
+[core]
+    no_scm = True
+    remote = hf-bucket
+['remote "hf-bucket"']
+    url = s3://sleepops-eeg-data/dvc-store
+    endpointurl = https://adamnouassida5.s3.hf.co
+    region = us-east-1

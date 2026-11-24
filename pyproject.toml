@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cs495-sleepops"
+version = "1.0.0"
+description = "Training and serving tools for the CS495 sleep-wake EEG project"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26,<3", "torch>=2.6,<3"]
+
+[project.optional-dependencies]
+api = ["fastapi==0.138.0", "uvicorn==0.49.0", "prometheus-client==0.23.1"]
+train = ["mlflow==3.12.0", "scikit-learn==1.6.1", "matplotlib==3.10.0"]
+demo = ["streamlit>=1.40,<2", "matplotlib==3.10.0"]
+test = ["pytest>=8,<10", "httpx==0.28.1"]
+
+[tool.setuptools]
+packages = ["sleepops"]
+py-modules = ["eeg_data", "eeg_model"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["dataset: needs the full DVC-managed training archive", "serving_assets: needs the private serving checkpoint or demo windows"]

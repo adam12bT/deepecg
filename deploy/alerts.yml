@@ -1,0 +1,18 @@
+groups:
+  - name: sleepops
+    rules:
+      - alert: SleepOpsApiDown
+        expr: up{job="sleepops"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: SleepOps API metrics are unreachable
+
+      - alert: SleepOpsFeatureDrift
+        expr: sleepops_feature_psi{job="sleepops"} >= 0.25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'EEG feature drift detected for {{ $labels.feature }}'

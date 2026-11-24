@@ -1,0 +1,95 @@
+{
+  "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "bytes": 13245587,
+  "feature_names": [
+    "delta_log_power",
+    "theta_log_power",
+    "alpha_log_power",
+    "sigma_log_power",
+    "beta_log_power",
+    "delta_relative_power",
+    "theta_relative_power",
+    "alpha_relative_power",
+    "sigma_relative_power",
+    "beta_relative_power",
+    "log_rms"
+  ],
+  "splits": {
+    "test": {
+      "forecast_class_counts": [
+        451,
+        360,
+        315,
+        278,
+        257,
+        239,
+        221,
+        203,
+        192,
+        182,
+        168,
+        160,
+        3339
+      ],
+      "recordings": 32,
+      "state_epoch_counts": [
+        13337,
+        27123
+      ],
+      "state_windows": 40046,
+      "subject_ids_sha256": "5940a5f5beb2e44f98f824405ee429d8fce4bd422002400e082fc889daf18768",
+      "subjects": 16
+    },
+    "train": {
+      "forecast_class_counts": [
+        1376,
+        1087,
+        989,
+        832,
+        787,
+        704,
+        679,
+        623,
+        593,
+        551,
+        535,
+        485,
+        8203
+      ],
+      "recordings": 89,
+      "state_epoch_counts": [
+        41081,
+        75729
+      ],
+      "state_windows": 115242,
+      "subject_ids_sha256": "ff88ea5beaf503ffd4a971d7cbaa0ec3669a2b3eb88daa2617eaddc4610ce4ab",
+      "subjects": 46
+    },
+    "validation": {
+      "forecast_class_counts": [
+        381,
+        292,
+        274,
+        239,
+        237,
+        218,
+        204,
+        193,
+        188,
+        187,
+        173,
+        169,
+        3207
+      ],
+      "recordings": 32,
+      "state_epoch_counts": [
+        11523,
+        26676
+      ],
+      "state_windows": 37596,
+      "subject_ids_sha256": "33692f41cf6ce9db4e9a47f220b4b86d78cc602360b04a17197af1a5a0518c70",
+      "subjects": 16
+    }
+  },
+  "version": 1
+}

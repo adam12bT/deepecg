@@ -1,0 +1,8 @@
+{
+  "file": "best_model.pt",
+  "release_id": "bcade40f7b96403fbf096748da70e173",
+  "selected_epoch": 4,
+  "checkpoint_sha256": "de4031399fc6f6bd2cb4bfd765bd84e4df032896b338f50a433101eebbafb12c",
+  "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "bytes": 296485
+}

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.work/
+runtime/
+build/
+*.egg-info/
+*.zip
+registry/releases/.staging-*/
+/sleep_edf_wake_data.npz
+/best_model.pt

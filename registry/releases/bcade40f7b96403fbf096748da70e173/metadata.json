@@ -1,0 +1,14 @@
+{
+  "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "created_at": "2026-11-23T23:13:00+00:00",
+  "file_sha256": {
+    "best_checkpoint.pt": "de4031399fc6f6bd2cb4bfd765bd84e4df032896b338f50a433101eebbafb12c",
+    "dataset.json": "53ba2cdddb8aa772efb767a18ee07b06391d357a32f9a9a356f7537bdbf8c984",
+    "drift_reference.json": "25502cedd17b79bbf91c9d063c698a0a8b9cce9ab2ec070def4f0e0926c22262",
+    "validation_metrics.json": "12f75754c8248672b64e5de56d37229f2c975923255069de87638d4330472cc3"
+  },
+  "origin": "sleepops_training",
+  "run_id": "bcade40f7b96403fbf096748da70e173",
+  "source_sha256": "fb4d16e1228a3ace9d92b269a8fedc14041ec39eedc91c0f9db17061bec6c9e8",
+  "version": 1
+}

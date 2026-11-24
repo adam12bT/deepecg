@@ -1,0 +1,8 @@
+{
+  "min_subjects": 10,
+  "min_balanced_accuracy": 0.85,
+  "min_macro_f1": 0.87,
+  "max_forecast_log_loss": 1.9,
+  "max_forecast_brier": 0.255,
+  "max_causality_delta": 0.00001
+}
