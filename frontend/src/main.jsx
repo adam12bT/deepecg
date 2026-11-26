@@ -161,14 +161,18 @@ function Timeline({ result, epochSeconds, status }) {
 }
 
 function StageTimeline({ result, stageNames }) {
-  const probabilities = result?.stage_probabilities ?? []
-  const names = result?.stage_names?.length ? result.stage_names : stageNames ?? []
   if (!result) return null
+  const activeProbabilities = result.stage_probabilities ?? []
+  const previewProbabilities = result.stage_preview_probabilities ?? []
+  const preview = activeProbabilities.length === 0 && previewProbabilities.length > 0
+  const probabilities = activeProbabilities.length ? activeProbabilities : previewProbabilities
+  const names = activeProbabilities.length ? result.stage_names
+    : preview ? result.stage_preview_names : stageNames ?? []
   if (!probabilities.length || names.length !== 5) {
     return <section className="panel stage-panel" aria-label="Sleep-stage classifier preview">
       <div className="panel-head">
-        <PanelTitle icon={Activity} title="Sleep-stage classifier" description="New stage-aware model preview" />
-        <span className="stage-status">Awaiting stage-aware checkpoint</span>
+        <PanelTitle icon={Activity} title="Sleep-stage classifier" description="Five stages, one prediction per 30-second epoch" />
+        <span className="stage-status">No stage checkpoint loaded</span>
       </div>
       <div className="stage-flow" aria-label="Model flow">
         <div><small>Input window</small><strong>10 × 11 EEG features</strong></div>
@@ -177,14 +181,18 @@ function StageTimeline({ result, stageNames }) {
         <span aria-hidden="true">→</span>
         <div><small>Forecast input</small><strong>10 × 16 features</strong></div>
       </div>
-      <p className="stage-notice">The active checkpoint is the earlier binary model, so it has no sleep-stage predictions yet. After training the v2 model, this panel will show its prediction and confidence for each 30-second epoch.</p>
+      <p className="stage-notice">The active production checkpoint predicts sleep versus wake and has no stage head. Stage predictions will appear here when a version-locked stage-aware preview checkpoint is available.</p>
     </section>
   }
   const predictions = probabilities.map((row) => row.indexOf(Math.max(...row)))
   return <section className="panel stage-panel" aria-labelledby="stage-title">
     <div className="panel-head">
-      <PanelTitle icon={Activity} title="Predicted sleep stage" description="Classifier output for each 30-second epoch" />
-      <div className="stage-legend">{names.map((name, index) => <span key={name}><i className={`stage-color stage-${index}`} />{name}</span>)}</div>
+      <PanelTitle icon={Activity} title={preview ? 'Sleep-stage classifier preview' : 'Predicted sleep stage'}
+        description={preview ? `Experimental candidate ${result.stage_preview_model_id?.slice(0, 12)}` : 'Active production classifier'} />
+      <div className="stage-heading-side"><span className={`stage-status${preview ? ' experimental' : ' active'}`}>
+        {preview ? 'Experimental · not promoted' : 'Production model'}</span>
+        <div className="stage-legend">{names.map((name, index) => <span key={name}><i className={`stage-color stage-${index}`} />{name}</span>)}</div>
+      </div>
     </div>
     <div className="stage-timeline" role="list" aria-label="Predicted sleep stages">
       {predictions.map((stage, index) => <div key={index} className={`stage-epoch stage-${stage}`} role="listitem"
@@ -195,6 +203,7 @@ function StageTimeline({ result, stageNames }) {
     <div className="stage-axis"><span>{offset(0, probabilities.length, 30)}</span><span>Now</span></div>
     <p className="stage-current">Current stage: <strong>{names[predictions.at(-1)]}</strong>
       <span> · {pct(probabilities.at(-1)[predictions.at(-1)])} classifier confidence</span></p>
+    {preview && <p className="stage-notice">This candidate did not pass every validation gate. Stages are an experimental preview; production sleep/wake and awakening forecasts still come from the active checkpoint.</p>}
   </section>
 }
 

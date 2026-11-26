@@ -7,6 +7,7 @@ import torch
 
 from eeg_data import FEATURE_NAMES, normalize
 from sleepops.api import create_app
+from sleepops.files import read_json
 from sleepops.registry import champion, load_bundle
 
 
@@ -41,6 +42,16 @@ def test_health_predictions_schema_and_telemetry(monkeypatch):
             body = response.json()
             assert body["state"] == state_name and body["release_id"] == path.name
             np.testing.assert_allclose(body["asleep_probabilities"], p_sleep[row], atol=1e-6)
+            if (ROOT / "stage_aware_model.pt").is_file():
+                stage_manifest = read_json(ROOT / "configs/stage_aware_model.json")
+                assert body["stage_preview_model_id"] == stage_manifest["run_id"]
+                assert body["stage_preview_names"] == ["Wake", "N1", "N2", "N3", "REM"]
+                preview = np.asarray(body["stage_preview_probabilities"])
+                assert preview.shape == (10, 5)
+                np.testing.assert_allclose(preview.sum(axis=1), 1.0, atol=1e-6)
+            else:
+                assert body["stage_preview_model_id"] is None
+                assert body["stage_preview_probabilities"] == []
             if state_name == "awake":
                 assert body["forecast"] is None
             else:

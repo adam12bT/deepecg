@@ -276,6 +276,8 @@ def stage(output, build=None, *, github_source=False):
         ".dvc/config", ".dvc/.gitignore", "deploy/huggingface/aws-config",
         f"{STAGE_MODEL}.dvc", str(STAGE_MODEL_LOCK),
     )]
+    if (ROOT / STAGE_MODEL).is_file():
+        files.append(Path(STAGE_MODEL))
     for directory in (".github", "configs", "deploy", "sleepops", "registry", "reports", "tests", "artifacts"):
         files.extend(path.relative_to(ROOT) for path in (ROOT / directory).rglob("*")
                      if path.is_file() and path.suffix in {".py", ".yml", ".yaml", ".json", ".toml", ".pt",

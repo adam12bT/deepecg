@@ -1,6 +1,8 @@
 """FastAPI inference service for the active model release."""
 
 from contextlib import asynccontextmanager
+import json
+import logging
 import os
 from pathlib import Path
 from time import perf_counter
@@ -15,7 +17,8 @@ from pydantic import BaseModel, ConfigDict, Field
 import torch
 
 from eeg_data import CLASS_LABELS, EPOCH_SEC, FEATURE_NAMES, HISTORY, N_FEATURES, STAGE_NAMES
-from eeg_model import SleepStageForecastPipeline, predict_window, predict_with_stages
+from eeg_model import SleepStageForecastPipeline, load_checkpoint, predict_window, predict_with_stages
+from sleepops.files import sha256
 from sleepops.monitor import DriftMonitor
 from sleepops.registry import CHECKPOINT, champion, load_bundle
 
@@ -46,7 +49,27 @@ class Prediction(BaseModel):
     asleep_probabilities: list[float]
     stage_names: list[str] = Field(default_factory=list)
     stage_probabilities: list[list[float]] = Field(default_factory=list)
+    stage_preview_model_id: str | None = None
+    stage_preview_names: list[str] = Field(default_factory=list)
+    stage_preview_probabilities: list[list[float]] = Field(default_factory=list)
     forecast: Forecast | None
+
+
+def load_stage_preview(checkpoint_path, manifest_path):
+    checkpoint_path, manifest_path = Path(checkpoint_path), Path(manifest_path)
+    if not checkpoint_path.is_file():
+        return None
+    if not manifest_path.is_file():
+        raise RuntimeError("The stage-preview checkpoint has no version manifest.")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (manifest.get("file") != checkpoint_path.name or checkpoint_path.stat().st_size != manifest.get("bytes")
+            or sha256(checkpoint_path) != manifest.get("checkpoint_sha256")):
+        raise RuntimeError("The stage-preview checkpoint does not match its version manifest.")
+    model, mean, scale, payload = load_checkpoint(checkpoint_path)
+    if (not isinstance(model, SleepStageForecastPipeline) or payload.get("version") != 2
+            or payload.get("archive_sha256") != manifest.get("archive_sha256")):
+        raise RuntimeError("The stage-preview checkpoint is not the locked v2 model.")
+    return model, mean, scale, manifest["run_id"]
 
 
 def load_demo_recordings(path, checkpoint):
@@ -73,9 +96,12 @@ def load_demo_recordings(path, checkpoint):
     return recordings
 
 
-def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_psi=0.25):
+def create_app(registry=None, *, demo_windows=None, stage_checkpoint=None, stage_manifest=None,
+               minimum_windows=100, alert_psi=0.25):
     registry = Path(registry or os.getenv("SLEEPOPS_REGISTRY", "registry"))
     demo_path = Path(demo_windows or os.getenv("SLEEPOPS_DEMO_WINDOWS", "artifacts/demo_windows.npz"))
+    stage_path = Path(stage_checkpoint or os.getenv("SLEEPOPS_STAGE_CHECKPOINT", "stage_aware_model.pt"))
+    stage_lock = Path(stage_manifest or os.getenv("SLEEPOPS_STAGE_MANIFEST", "configs/stage_aware_model.json"))
     collectors = CollectorRegistry()
     requests = Counter("sleepops_prediction_requests", "Prediction requests by outcome", ("outcome",),
                        registry=collectors)
@@ -94,6 +120,7 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
         if metadata["run_id"] != path.name:
             raise RuntimeError("The champion pointer disagrees with its release metadata.")
         app.state.model_input = (model, mean, scale)
+        app.state.stage_preview = load_stage_preview(stage_path, stage_lock)
         app.state.recordings = load_demo_recordings(demo_path, checkpoint)
         app.state.drift = DriftMonitor(reference, minimum_windows=minimum_windows, alert_psi=alert_psi)
         app.state.details = {"release_id": path.name, "archive_sha256": metadata["archive_sha256"],
@@ -144,6 +171,14 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
             else:
                 p_sleep, probabilities = predict_window(*serving.model_input, window)
                 stages = None
+            stage_preview_probabilities = None
+            stage_preview_model_id = None
+            if stages is None and serving.stage_preview is not None:
+                try:
+                    _, _, stage_preview_probabilities = predict_with_stages(*serving.stage_preview[:3], window)
+                    stage_preview_model_id = serving.stage_preview[3]
+                except (ValueError, RuntimeError):
+                    logging.exception("Experimental sleep-stage preview failed; returning production prediction only.")
             if not np.isfinite(p_sleep).all() or not np.isfinite(probabilities).all():
                 raise RuntimeError("Nonfinite model output.")
         except ValueError as error:
@@ -167,7 +202,12 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
         return Prediction(release_id=version, state=state, state_threshold=threshold,
                           asleep_probabilities=p_sleep.tolist(),
                           stage_names=list(STAGE_NAMES) if stages is not None else [],
-                          stage_probabilities=stages.tolist() if stages is not None else [], forecast=forecast)
+                          stage_probabilities=stages.tolist() if stages is not None else [],
+                          stage_preview_model_id=stage_preview_model_id,
+                          stage_preview_names=list(STAGE_NAMES) if stage_preview_probabilities is not None else [],
+                          stage_preview_probabilities=(stage_preview_probabilities.tolist()
+                                                       if stage_preview_probabilities is not None else []),
+                          forecast=forecast)
 
     @app.post("/v1/predict", response_model=Prediction)
     def predict_features(body: PredictionRequest, request: Request):
