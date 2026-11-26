@@ -14,8 +14,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, G
 from pydantic import BaseModel, ConfigDict, Field
 import torch
 
-from eeg_data import CLASS_LABELS, EPOCH_SEC, FEATURE_NAMES, HISTORY, N_FEATURES
-from eeg_model import predict_window
+from eeg_data import CLASS_LABELS, EPOCH_SEC, FEATURE_NAMES, HISTORY, N_FEATURES, STAGE_NAMES
+from eeg_model import SleepStageForecastPipeline, predict_window, predict_with_stages
 from sleepops.monitor import DriftMonitor
 from sleepops.registry import CHECKPOINT, champion, load_bundle
 
@@ -44,6 +44,8 @@ class Prediction(BaseModel):
     state: Literal["awake", "asleep"]
     state_threshold: float
     asleep_probabilities: list[float]
+    stage_names: list[str] = Field(default_factory=list)
+    stage_probabilities: list[list[float]] = Field(default_factory=list)
     forecast: Forecast | None
 
 
@@ -96,7 +98,8 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
         app.state.drift = DriftMonitor(reference, minimum_windows=minimum_windows, alert_psi=alert_psi)
         app.state.details = {"release_id": path.name, "archive_sha256": metadata["archive_sha256"],
                              "checkpoint_sha256": metadata["file_sha256"][CHECKPOINT],
-                             "selected_epoch": checkpoint["best_epoch"], "state_threshold": checkpoint["state_threshold"]}
+                             "selected_epoch": checkpoint["best_epoch"], "state_threshold": checkpoint["state_threshold"],
+                             "stage_names": list(STAGE_NAMES) if isinstance(model, SleepStageForecastPipeline) else []}
         if build_id := os.getenv("SLEEPOPS_BUILD_ID"):
             app.state.details["build_id"] = build_id
         yield
@@ -127,7 +130,7 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
     def feature_schema():
         return {"shape": [HISTORY, N_FEATURES], "epoch_seconds": EPOCH_SEC,
                 "feature_names": FEATURE_NAMES, "window_order": "oldest to most recent completed epoch",
-                "forecast_bins": CLASS_LABELS}
+                "forecast_bins": CLASS_LABELS, "stage_names": STAGE_NAMES}
 
     def predict(window, request):
         started = perf_counter()
@@ -136,7 +139,11 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
         version = details["release_id"]
         threshold = details["state_threshold"]
         try:
-            p_sleep, probabilities = predict_window(*serving.model_input, window)
+            if isinstance(serving.model_input[0], SleepStageForecastPipeline):
+                p_sleep, probabilities, stages = predict_with_stages(*serving.model_input, window)
+            else:
+                p_sleep, probabilities = predict_window(*serving.model_input, window)
+                stages = None
             if not np.isfinite(p_sleep).all() or not np.isfinite(probabilities).all():
                 raise RuntimeError("Nonfinite model output.")
         except ValueError as error:
@@ -158,7 +165,9 @@ def create_app(registry=None, *, demo_windows=None, minimum_windows=100, alert_p
         decisions.labels(state, version).inc()
         requests.labels("success").inc()
         return Prediction(release_id=version, state=state, state_threshold=threshold,
-                          asleep_probabilities=p_sleep.tolist(), forecast=forecast)
+                          asleep_probabilities=p_sleep.tolist(),
+                          stage_names=list(STAGE_NAMES) if stages is not None else [],
+                          stage_probabilities=stages.tolist() if stages is not None else [], forecast=forecast)
 
     @app.post("/v1/predict", response_model=Prediction)
     def predict_features(body: PredictionRequest, request: Request):

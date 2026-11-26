@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-from eeg_data import CLASS_LABELS, FEATURE_NAMES, HISTORY, N_CLASSES, N_FEATURES
-from eeg_model import load_checkpoint, predict_window
+from eeg_data import CLASS_LABELS, FEATURE_NAMES, HISTORY, N_CLASSES, N_FEATURES, STAGE_NAMES
+from eeg_model import SleepStageForecastPipeline, load_checkpoint, predict_with_stages, predict_window
 
 
 ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
@@ -132,12 +132,17 @@ def main():
         if api_url:
             result = api_json(api_url, "/v1/predict", {"features": window.tolist()})
             p_state = np.asarray(result["asleep_probabilities"])
+            p_stage = np.asarray(result["stage_probabilities"]) if result["stage_probabilities"] else None
             forecast = result["forecast"]
             p_forecast = np.asarray([row["probability"] for row in forecast["bins"]]) if forecast else None
             threshold = result["state_threshold"]
             st.caption(f"Model release {result['release_id'][:12]}")
         else:
-            p_state, p_forecast = predict_window(model, mean, scale, window)
+            if isinstance(model, SleepStageForecastPipeline):
+                p_state, p_forecast, p_stage = predict_with_stages(model, mean, scale, window)
+            else:
+                p_state, p_forecast = predict_window(model, mean, scale, window)
+                p_stage = None
             threshold = details["state_threshold"]
     except (OSError, ValueError, TypeError, KeyError) as error:
         st.error(str(error))
@@ -149,6 +154,13 @@ def main():
     fig = state_plot(p_state, threshold)
     st.pyplot(fig)
     plt.close(fig)
+    if p_stage is not None:
+        st.subheader("Predicted sleep stage")
+        st.dataframe({
+            "Relative epoch": [f"{(index - HISTORY + 1) * 0.5:g} min" for index in range(HISTORY)],
+            "Stage": [STAGE_NAMES[index] for index in p_stage.argmax(axis=1)],
+            "Confidence": [f"{row.max():.1%}" for row in p_stage],
+        }, hide_index=True, use_container_width=True)
 
     if asleep:
         most_likely = int(p_forecast.argmax())

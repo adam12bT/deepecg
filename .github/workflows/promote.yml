@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   plan:
-    if: ${{ github.ref == format('refs/heads/{0}', vars.SLEEPOPS_DEPLOY_BRANCH || 'main') && vars.SLEEPOPS_HF_SPACE != '' && vars.SLEEPOPS_HF_BUCKET != '' }}
+    if: ${{ github.ref == format('refs/heads/{0}', vars.SLEEPOPS_DEPLOY_BRANCH || 'sleepops') && vars.SLEEPOPS_HF_SPACE != '' && vars.SLEEPOPS_HF_BUCKET != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

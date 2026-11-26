@@ -7,8 +7,12 @@ runtime/
 build/
 *.egg-info/
 *.zip
+*.pt
 registry/releases/.staging-*/
+/artifacts/
+/SleepOps_React_Preview.png
 /sleep_edf_wake_data.npz
-/best_model.pt
 /frontend/node_modules/
 /frontend/dist/
+/frontend/admin/dist/
+/frontend/admin/public/python/

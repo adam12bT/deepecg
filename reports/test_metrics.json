@@ -1,0 +1,89 @@
+{
+  "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "awakenings_within_hour": 3026,
+  "forecast": {
+    "shared_model": {
+      "multiclass_log_loss": 1.8071682380558154,
+      "within_hour_brier": 0.23070324170004378
+    },
+    "training_class_distribution": {
+      "multiclass_log_loss": 1.8551361457459985,
+      "within_hour_brier": 0.2523482794415555
+    }
+  },
+  "forecast_train_class_counts": [
+    1376,
+    1087,
+    989,
+    832,
+    787,
+    704,
+    679,
+    623,
+    593,
+    551,
+    535,
+    485,
+    8203
+  ],
+  "forecast_windows": 6365,
+  "plot_example": {
+    "observed_class": 12,
+    "observed_minutes": 60.0,
+    "probabilities": [
+      0.03264797917919004,
+      0.034315220049453955,
+      0.02908531986278941,
+      0.027721301149149686,
+      0.03308092570070522,
+      0.025723749946267034,
+      0.027290951244242634,
+      0.03439700850328029,
+      0.03378698916326755,
+      0.019576668629692793,
+      0.029279086869186975,
+      0.021419146707313694,
+      0.6516756529954607
+    ],
+    "record_id": "SC4071",
+    "window_end_sec": 40830
+  },
+  "recordings": 32,
+  "run_id": "bcade40f7b96403fbf096748da70e173",
+  "selected_epoch": 4,
+  "split": "test",
+  "state": {
+    "logistic_regression": {
+      "balanced_accuracy": 0.8564727987050547,
+      "confusion_matrix": [
+        [
+          10700,
+          2637
+        ],
+        [
+          2423,
+          24700
+        ]
+      ],
+      "macro_f1": 0.8579278612330394
+    },
+    "shared_model": {
+      "balanced_accuracy": 0.8919602053578612,
+      "confusion_matrix": [
+        [
+          10850,
+          2487
+        ],
+        [
+          803,
+          26320
+        ]
+      ],
+      "macro_f1": 0.9047619047619048
+    }
+  },
+  "state_epochs": 40460,
+  "state_short_history_epochs": 414,
+  "state_threshold": 0.5,
+  "subjects": 16
+}

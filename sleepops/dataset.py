@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from eeg_data import FEATURE_NAMES, N_CLASSES, SPLITS, load_archive
+from eeg_data import FEATURE_NAMES, N_CLASSES, N_STAGES, SPLITS, load_archive
 from sleepops.files import read_json, sha256
 
 
@@ -33,6 +33,8 @@ def load_dataset(archive, lock=None):
             "state_windows": len(data.state_windows[split]),
             "forecast_class_counts": np.bincount(data.forecast_classes[forecast], minlength=N_CLASSES).tolist(),
         }
+        if "y_stage" in a:
+            manifest["splits"][split]["stage_counts"] = np.bincount(a["y_stage"][state], minlength=N_STAGES).tolist()
     if locked is not None and locked != manifest:
         raise ValueError(f"Dataset contract differs from {lock}.")
     return data, manifest

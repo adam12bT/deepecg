@@ -144,6 +144,10 @@ def evaluation_logits(model, inputs, device, batch_size=1024):
 
 
 def fit(data, archive_path, output_dir, config, requested_device="auto", on_epoch=None):
+    if "y_stage" in data.arrays:
+        from sleepops.stage_pipeline import fit as fit_two_stage
+
+        return fit_two_stage(data, archive_path, output_dir, config, requested_device, on_epoch)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     device = init_training(config.seed, requested_device)
@@ -245,6 +249,11 @@ def plot_forecast(probabilities, prior, true_class, record, end_seconds):
 
 
 def evaluate(data, checkpoint, output_dir, device, *, split):
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    if payload["version"] == 2:
+        from sleepops.stage_pipeline import evaluate as evaluate_two_stage
+
+        return evaluate_two_stage(data, checkpoint, output_dir, device, split=split)
     if split not in {"validation", "test"}:
         raise ValueError("Evaluation requires the validation or test split.")
     a = data.arrays

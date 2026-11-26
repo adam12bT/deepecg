@@ -160,6 +160,44 @@ function Timeline({ result, epochSeconds, status }) {
   </section>
 }
 
+function StageTimeline({ result, stageNames }) {
+  const probabilities = result?.stage_probabilities ?? []
+  const names = result?.stage_names?.length ? result.stage_names : stageNames ?? []
+  if (!result) return null
+  if (!probabilities.length || names.length !== 5) {
+    return <section className="panel stage-panel" aria-label="Sleep-stage classifier preview">
+      <div className="panel-head">
+        <PanelTitle icon={Activity} title="Sleep-stage classifier" description="New stage-aware model preview" />
+        <span className="stage-status">Awaiting stage-aware checkpoint</span>
+      </div>
+      <div className="stage-flow" aria-label="Model flow">
+        <div><small>Input window</small><strong>10 × 11 EEG features</strong></div>
+        <span aria-hidden="true">→</span>
+        <div><small>First model</small><strong>Wake · N1 · N2 · N3 · REM</strong></div>
+        <span aria-hidden="true">→</span>
+        <div><small>Forecast input</small><strong>10 × 16 features</strong></div>
+      </div>
+      <p className="stage-notice">The active checkpoint is the earlier binary model, so it has no sleep-stage predictions yet. After training the v2 model, this panel will show its prediction and confidence for each 30-second epoch.</p>
+    </section>
+  }
+  const predictions = probabilities.map((row) => row.indexOf(Math.max(...row)))
+  return <section className="panel stage-panel" aria-labelledby="stage-title">
+    <div className="panel-head">
+      <PanelTitle icon={Activity} title="Predicted sleep stage" description="Classifier output for each 30-second epoch" />
+      <div className="stage-legend">{names.map((name, index) => <span key={name}><i className={`stage-color stage-${index}`} />{name}</span>)}</div>
+    </div>
+    <div className="stage-timeline" role="list" aria-label="Predicted sleep stages">
+      {predictions.map((stage, index) => <div key={index} className={`stage-epoch stage-${stage}`} role="listitem"
+        title={`${offset(index, predictions.length, 30)} · ${names[stage]} · ${pct(probabilities[index][stage])} confidence`}>
+        <strong>{names[stage]}</strong><span>{pct(probabilities[index][stage])}</span>
+      </div>)}
+    </div>
+    <div className="stage-axis"><span>{offset(0, probabilities.length, 30)}</span><span>Now</span></div>
+    <p className="stage-current">Current stage: <strong>{names[predictions.at(-1)]}</strong>
+      <span> · {pct(probabilities.at(-1)[predictions.at(-1)])} classifier confidence</span></p>
+  </section>
+}
+
 function Forecast({ result, status }) {
   const forecast = result?.forecast
   const best = forecast?.bins.reduce((left, right) => right.probability > left.probability ? right : left)
@@ -271,7 +309,7 @@ function App() {
     <main className="shell">
       <div className="page-heading">
         <div><h1>Sleep &amp; wake analysis</h1><p>Explore sleep state and awakening probabilities from EEG.</p></div>
-        {modelId && <div className="model-tag" title={modelId}><FlaskConical size={17} aria-hidden="true" /><span>Model <code>{modelId.slice(0, 12)}</code></span></div>}
+        {modelId && <div className="model-tag" title={modelId}><FlaskConical size={17} aria-hidden="true" /><span>{context?.model.preview || result?.preview ? 'Local candidate preview' : 'Model'} <code>{modelId.slice(0, 12)}</code></span></div>}
       </div>
       {contextError && <Banner retry={() => { setContextError(''); refreshContext((value) => value + 1) }}>{contextError}</Banner>}
       <div className="dashboard">
@@ -297,7 +335,8 @@ function App() {
         <div className="analysis">
           <div className="stats" aria-live="polite">
             <Stat label="Current state" value={stateName} icon={asleep ? MoonStar : result ? Sun : Activity}
-              tone={asleep ? 'sleep' : result ? 'wake' : 'neutral'} note={result ? `${pct(result.asleep_probabilities.at(-1))} sleep probability` : 'At the final epoch'}>
+              tone={asleep ? 'sleep' : result ? 'wake' : 'neutral'}
+              note={result ? `${pct(result.asleep_probabilities.at(-1))} sleep probability` : 'At the final epoch'}>
               {result && <div className="stat-track" aria-hidden="true"><span style={{ width: `${result.asleep_probabilities.at(-1) * 100}%` }} /></div>}
             </Stat>
             <Stat label="Window end" value={source === 'recording' && end !== undefined ? clock(end) : source === 'upload' && result ? 'Uploaded' : '—'}
@@ -306,6 +345,7 @@ function App() {
               icon={Radar} note={result?.forecast ? 'Sustained awakening' : 'Available during sleep'} tone="teal" />
           </div>
           <Timeline key={source === 'recording' ? key : uploadRequest.fileName ?? 'upload'} result={result} epochSeconds={epochSeconds} status={current.status} />
+          <StageTimeline result={result} stageNames={context?.schema.stage_names} />
           <Forecast result={result} status={current.status} />
         </div>
       </div>

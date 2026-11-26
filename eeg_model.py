@@ -7,7 +7,10 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from eeg_data import FEATURE_NAMES, HISTORY, N_CLASSES, N_FEATURES, normalize
+from eeg_data import FEATURE_NAMES, HISTORY, N_CLASSES, N_FEATURES, N_STAGES, STAGE_NAMES, normalize
+
+
+FORECAST_FEATURES = N_FEATURES + N_STAGES
 
 
 class CausalEncoderLayer(nn.Module):
@@ -65,6 +68,58 @@ class SleepWakeModel(nn.Module):
         return state_logits, forecast_logits
 
 
+class SleepStageClassifier(nn.Module):
+    def __init__(self, dropout=0.1):
+        super().__init__()
+        self.network = nn.Sequential(
+            nn.Linear(N_FEATURES, 64), nn.GELU(), nn.Dropout(dropout),
+            nn.Linear(64, 32), nn.GELU(), nn.Dropout(dropout), nn.Linear(32, N_STAGES),
+        )
+
+    def forward(self, x):
+        return self.network(x)
+
+
+class AwakeningForecaster(nn.Module):
+    def __init__(self, dropout=0.1):
+        super().__init__()
+        width = 64
+        kernel = 3
+        self.left_padding = kernel - 1
+        self.conv = nn.Conv1d(FORECAST_FEATURES, width, kernel_size=kernel)
+        self.position = nn.Embedding(HISTORY, width)
+        self.encoder = nn.Sequential(*(CausalEncoderLayer(dropout=dropout) for _ in range(2)))
+        self.final_norm = nn.LayerNorm(width)
+        self.forecast_head = nn.Linear(width, N_CLASSES)
+
+    def encode(self, x):
+        if x.ndim != 3 or x.shape[-1] != FORECAST_FEATURES or not 1 <= x.shape[1] <= HISTORY:
+            raise ValueError(f"Expected (batch, 1 to {HISTORY}, {FORECAST_FEATURES}) EEG and stage features.")
+        x = F.pad(x.transpose(1, 2), (self.left_padding, 0))
+        x = F.gelu(self.conv(x)).transpose(1, 2)
+        x = x + self.position(torch.arange(x.shape[1], device=x.device))
+        return self.final_norm(self.encoder(x))
+
+    def forward(self, x):
+        return self.forecast_head(self.encode(x)[:, -1])
+
+
+class SleepStageForecastPipeline(nn.Module):
+    def __init__(self, dropout=0.1):
+        super().__init__()
+        self.stage_classifier = SleepStageClassifier(dropout)
+        self.forecaster = AwakeningForecaster(dropout)
+
+    def forward(self, x, stage_probabilities=None):
+        stage_logits = self.stage_classifier(x)
+        if stage_probabilities is None:
+            stage_probabilities = stage_logits.softmax(dim=-1)
+        if stage_probabilities.shape != (*x.shape[:2], N_STAGES):
+            raise ValueError(f"Stage probabilities must have shape (batch, time, {N_STAGES}).")
+        forecast_logits = self.forecaster(torch.cat((x, stage_probabilities), dim=-1))
+        return stage_logits, forecast_logits
+
+
 @torch.inference_mode()
 def verify_causality(model, x):
     """Perturb each possible suffix and compare untouched prefix predictions."""
@@ -72,9 +127,13 @@ def verify_causality(model, x):
     model.eval()
     try:
         state, forecast = model(x)
-        embeddings = model.encode(x)
-        assert embeddings.shape == (len(x), HISTORY, 64)
-        assert state.shape == (len(x), HISTORY) and forecast.shape == (len(x), N_CLASSES)
+        if isinstance(model, SleepStageForecastPipeline):
+            assert state.shape == (len(x), HISTORY, N_STAGES)
+        else:
+            embeddings = model.encode(x)
+            assert embeddings.shape == (len(x), HISTORY, 64)
+            assert state.shape == (len(x), HISTORY)
+        assert forecast.shape == (len(x), N_CLASSES)
         max_change = 0.0
         for cut in range(1, HISTORY):
             modified = x.clone()
@@ -84,9 +143,13 @@ def verify_causality(model, x):
             max_change = max(max_change, (state[:, :cut] - changed[:, :cut]).abs().max().item())
             prefix_state, prefix_forecast = model(x[:, :cut])
             torch.testing.assert_close(state[:, :cut], prefix_state, rtol=1e-5, atol=1e-5)
-            torch.testing.assert_close(
-                model.forecast_head(embeddings[:, cut - 1]), prefix_forecast, rtol=1e-5, atol=1e-5,
-            )
+            if isinstance(model, SleepStageForecastPipeline):
+                torch.testing.assert_close(model.forecaster(torch.cat((x[:, :cut],
+                                               state[:, :cut].softmax(dim=-1)), dim=-1)),
+                                           prefix_forecast, rtol=1e-5, atol=1e-5)
+            else:
+                torch.testing.assert_close(model.forecast_head(embeddings[:, cut - 1]),
+                                           prefix_forecast, rtol=1e-5, atol=1e-5)
         return max_change
     finally:
         model.train(was_training)
@@ -94,14 +157,19 @@ def verify_causality(model, x):
 
 def load_checkpoint(path: str | Path, device="cpu"):
     payload = torch.load(path, map_location="cpu", weights_only=True)
-    if payload["version"] != 1 or tuple(payload["feature_names"]) != FEATURE_NAMES:
+    if payload["version"] not in {1, 2} or tuple(payload["feature_names"]) != FEATURE_NAMES:
         raise ValueError("Unsupported checkpoint version or feature order.")
     mean = payload["feature_mean"].numpy()
     scale = payload["feature_scale"].numpy()
     if (mean.shape != (N_FEATURES,) or scale.shape != mean.shape
             or not np.isfinite(mean).all() or not np.isfinite(scale).all() or np.any(scale <= 0)):
         raise ValueError("Invalid checkpoint normalization statistics.")
-    model = SleepWakeModel(dropout=payload["dropout"]).to(device)
+    if payload["version"] == 2:
+        if tuple(payload.get("stage_names", ())) != STAGE_NAMES:
+            raise ValueError("Unsupported sleep-stage class order.")
+        model = SleepStageForecastPipeline(dropout=payload["dropout"]).to(device)
+    else:
+        model = SleepWakeModel(dropout=payload["dropout"]).to(device)
     model.load_state_dict(payload["model_state"])
     return model.eval(), mean, scale, payload
 
@@ -117,4 +185,25 @@ def predict_window(model, mean, scale, window):
         raise ValueError("Feature values are outside the supported numeric range.")
     batch = torch.as_tensor(x[None], device=next(model.parameters()).device)
     state, forecast = model(batch)
-    return state[0].sigmoid().cpu().numpy(), forecast[0].softmax(dim=-1).cpu().numpy()
+    probabilities = state[0].softmax(dim=-1) if isinstance(model, SleepStageForecastPipeline) else None
+    asleep = 1 - probabilities[:, 0] if probabilities is not None else state[0].sigmoid()
+    return asleep.cpu().numpy(), forecast[0].softmax(dim=-1).cpu().numpy()
+
+
+@torch.inference_mode()
+def predict_with_stages(model, mean, scale, window):
+    if not isinstance(model, SleepStageForecastPipeline):
+        raise ValueError("This checkpoint does not include the sleep-stage classifier.")
+    raw = np.asarray(window, dtype=np.float32)
+    if raw.shape != (HISTORY, N_FEATURES) or not np.isfinite(raw).all():
+        raise ValueError(f"Provide a finite {HISTORY} × {N_FEATURES} raw feature matrix.")
+    with np.errstate(over="ignore", invalid="ignore"):
+        normalized = normalize(raw, mean, scale)
+    if not np.isfinite(normalized).all():
+        raise ValueError("Feature values are outside the supported numeric range.")
+    x = torch.as_tensor(normalized[None], device=next(model.parameters()).device)
+    stage_logits, forecast_logits = model(x)
+    stage_probs = stage_logits[0].softmax(dim=-1)
+    return ((1 - stage_probs[:, 0]).cpu().numpy(),
+            forecast_logits[0].softmax(dim=-1).cpu().numpy(),
+            stage_probs.cpu().numpy())

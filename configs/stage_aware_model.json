@@ -1,0 +1,11 @@
+{
+  "file": "stage_aware_model.pt",
+  "run_id": "0953df84193d4c658f17d9f17061629f",
+  "archive_sha256": "3fac6968dfe5ac9a8b4d2118f813aa48f544eea9d065b112626dff75ac068666",
+  "checkpoint_sha256": "9513024d459485207a5159dd1cadc957339123c39bc9a62ed69a21df52235b43",
+  "bytes": 314553,
+  "stage_best_epoch": 15,
+  "forecast_best_epoch": 4,
+  "version": 1,
+  "status": "review_candidate"
+}

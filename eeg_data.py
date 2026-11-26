@@ -11,6 +11,8 @@ EPOCH_SEC = 30
 HISTORY = 10
 N_FEATURES = 11
 N_CLASSES = 13
+N_STAGES = 5
+STAGE_NAMES = ("Wake", "N1", "N2", "N3", "REM")
 SPLITS = ("train", "validation", "test")
 BANDS = ("delta", "theta", "alpha", "sigma", "beta")
 FEATURE_NAMES = tuple(f"{band}_{kind}_power" for kind in ("log", "relative") for band in BANDS) + (
@@ -41,7 +43,7 @@ def load_archive(path: str | Path, verbose: bool = True) -> EEGData:
             print(f"  {key:38} {str(value.shape):17} {value.dtype}")
 
     metadata = {
-        "schema_version": 1, "epoch_sec": EPOCH_SEC, "history_epochs": HISTORY,
+        "epoch_sec": EPOCH_SEC, "history_epochs": HISTORY,
         "wake_minimum_sec": 120, "horizon_min": 60, "sampling_hz": 100,
         "channel": "EEG Fpz-Cz",
     }
@@ -49,6 +51,11 @@ def load_archive(path: str | Path, verbose: bool = True) -> EEGData:
         require(key in a and a[key].shape == () and a[key].item() == expected,
                 f"Expected archive metadata {key}={expected!r}.")
     require(tuple(a.get("feature_names", ())) == FEATURE_NAMES, "Unexpected feature names or order.")
+    require(a["schema_version"].shape == (), "Invalid archive schema version.")
+    schema_version = int(a["schema_version"].item())
+    require(schema_version in {1, 2}, "Unsupported archive schema version.")
+    has_stages = "y_stage" in a
+    require(has_stages == (schema_version == 2), "Schema version and sleep-stage labels disagree.")
 
     record_ids = a["record_id"]
     subjects = a["record_subject_id"]
@@ -87,6 +94,12 @@ def load_archive(path: str | Path, verbose: bool = True) -> EEGData:
 
     require(set(a["state_record_id"]) == set(record_ids), "State rows do not cover the manifest.")
     require(np.isin(a["y_state"], [0, 1]).all(), "State labels must be Wake=0 or Sleep=1.")
+    if has_stages:
+        stage = a["y_stage"]
+        require(stage.shape == a["y_state"].shape and np.isin(stage, np.arange(N_STAGES)).all(),
+                "Sleep-stage labels must align with state rows and use Wake, N1, N2, N3, or REM.")
+        require(np.array_equal(a["y_state"], stage != 0),
+                "Binary sleep labels must agree with the detailed sleep-stage labels.")
     classes = forecast_targets(a)
     runs, windows = build_state_windows(a)
     validate_forecast_histories(a)

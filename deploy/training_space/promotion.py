@@ -12,13 +12,13 @@ from sleepops.files import read_json, sha256, utc_now
 from sleepops.registry import CHECKPOINT
 
 
-def checkpoint_loss(path, digest):
-    import torch
-
+def checkpoint_loss(path, digest, report_digest):
     if sha256(path) != digest:
         raise ValueError("The checkpoint checksum changed.")
-    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-    score = float(checkpoint["validation_score"])
+    report = path.with_name("validation_metrics.json")
+    if sha256(report) != report_digest:
+        raise ValueError("The validation report checksum changed.")
+    score = float(read_json(report)["forecast"]["shared_model"]["multiclass_log_loss"])
     if not isfinite(score) or score < 0:
         raise ValueError("The checkpoint has an invalid validation loss.")
     return score
@@ -48,7 +48,8 @@ class PromotionQueue:
     def best(self):
         try:
             active = self.catalog.version("deployed")
-            active_loss = cached_loss(active.path / CHECKPOINT, active.metadata["file_sha256"][CHECKPOINT])
+            active_loss = cached_loss(active.path / CHECKPOINT, active.metadata["file_sha256"][CHECKPOINT],
+                                      active.metadata["file_sha256"]["validation_metrics.json"])
         except (*READ_ERRORS, RuntimeError):
             return None, None
         best = None
@@ -58,7 +59,8 @@ class PromotionQueue:
             try:
                 if not comparison(active, model, "validation", self.datasets.anchor)[2]:
                     continue
-                loss = cached_loss(model.path / CHECKPOINT, model.metadata["file_sha256"][CHECKPOINT])
+                loss = cached_loss(model.path / CHECKPOINT, model.metadata["file_sha256"][CHECKPOINT],
+                                   model.metadata["file_sha256"]["validation_metrics.json"])
             except (*READ_ERRORS, RuntimeError):
                 continue
             if loss < active_loss and (best is None or loss < best["loss"]):

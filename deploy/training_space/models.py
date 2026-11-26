@@ -9,6 +9,7 @@ from sleepops.registry import VERSION_PATTERN, check_quality, release_path
 
 
 METRICS = (
+    ("Sleep-stage macro F1", "stages", "macro_f1", True),
     ("Balanced accuracy", "state", "balanced_accuracy", True),
     ("Macro F1", "state", "macro_f1", True),
     ("Forecast log loss", "forecast", "multiclass_log_loss", False),
@@ -35,13 +36,20 @@ class Version:
 
 
 def metric(report, task, name):
-    value = report[task]["shared_model"][name]
+    if task == "stages":
+        value = report.get("stages", {}).get(name)
+        if value is None:
+            return None
+    else:
+        value = report[task]["shared_model"][name]
     if not isinstance(value, (int, float)) or not isfinite(value):
         raise ValueError(f"Invalid model metric {name}.")
     return value
 
 
 def display(value, percent):
+    if value is None:
+        return "—"
     return f"{value:.2%}" if percent else f"{value:.4f}"
 
 
@@ -110,6 +118,7 @@ class ModelCatalog:
 def model_rows(versions):
     return [[version.metadata["run_id"], "Deployed" if version.key == "deployed" else "Candidate",
              version.validation["selected_epoch"], "Passed" if version.gates["passed"] else "Review",
+             display(metric(version.validation, "stages", "macro_f1"), True),
              display(metric(version.validation, "state", "balanced_accuracy"), True),
              display(metric(version.validation, "forecast", "multiclass_log_loss"), False),
              "Available" if version.test else "—"] for version in versions]
@@ -136,7 +145,10 @@ def comparison(left, right, split, anchor=None):
     if not same_source and anchor:
         left_anchor = anchor(left_hash)
         same_source = bool(left_anchor and left_anchor == anchor(right_hash))
-    same_cohort = same_source and left.dataset["splits"][split] == right.dataset["splits"][split]
+    fields = ("subjects", "recordings", "subject_ids_sha256", "state_epoch_counts", "forecast_class_counts")
+    cohort_left = left.dataset["splits"][split]
+    cohort_right = right.dataset["splits"][split]
+    same_cohort = same_source and all(cohort_left.get(key) == cohort_right.get(key) for key in fields)
     comparable = bool(a and b and same_cohort and all(
         a[name] == b[name] for name in ("subjects", "state_epochs", "forecast_windows")))
     if comparable:
@@ -152,7 +164,7 @@ def comparison(left, right, split, anchor=None):
         first = metric(a, task, key) if a else None
         second = metric(b, task, key) if b else None
         difference, better = "—", "—"
-        if comparable:
+        if comparable and first is not None and second is not None:
             delta = round((second - first) * 100, 2) if percent else round(second - first, 4)
             difference = f"{delta:+.2f} pp" if percent else f"{delta:+.4f}"
             better = "Tie" if not delta else "B" if (delta > 0) == percent else "A"
@@ -170,7 +182,11 @@ def check_checkpoint(version):
     import numpy as np
     import torch
 
-    from eeg_model import HISTORY, N_CLASSES, N_FEATURES, predict_window, verify_causality
+    from eeg_data import STAGE_NAMES
+    from eeg_model import (
+        HISTORY, N_CLASSES, N_FEATURES, SleepStageForecastPipeline, predict_window, predict_with_stages,
+        verify_causality,
+    )
     from sleepops.registry import load_bundle
 
     torch.set_num_threads(1)
@@ -179,6 +195,10 @@ def check_checkpoint(version):
     if (state.shape != (HISTORY,) or forecast.shape != (N_CLASSES,) or not np.isfinite(state).all()
             or not np.isfinite(forecast).all() or not np.isclose(forecast.sum(), 1.0)):
         raise ValueError("Unexpected inference output.")
+    if isinstance(model, SleepStageForecastPipeline):
+        _, _, stages = predict_with_stages(model, mean, scale, np.tile(mean, (HISTORY, 1)))
+        if stages.shape != (HISTORY, len(STAGE_NAMES)) or not np.isfinite(stages).all():
+            raise ValueError("Unexpected sleep-stage output.")
     delta = verify_causality(model, torch.zeros(1, HISTORY, N_FEATURES))
     return (f"**Check passed for {version.label}.** Checksums and normalization verified. "
             f"CPU inference returned {len(state)} sleep probabilities and {len(forecast)} forecast probabilities. "

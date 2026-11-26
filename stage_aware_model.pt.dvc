@@ -1,0 +1,5 @@
+outs:
+- md5: 83b553eb486898aff58ebb6578fd6eda
+  size: 314553
+  hash: md5
+  path: stage_aware_model.pt

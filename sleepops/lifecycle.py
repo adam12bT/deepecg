@@ -43,7 +43,7 @@ def source_fingerprint():
     root = Path(__file__).resolve().parent.parent
     paths = [root / name for name in (
         "eeg_data.py", "eeg_model.py", "sleepops/dataset.py", "sleepops/monitor.py",
-        "sleepops/training.py", "sleepops/lifecycle.py",
+        "sleepops/training.py", "sleepops/stage_pipeline.py", "sleepops/lifecycle.py",
     )]
     return hashlib.sha256("\n".join(f"{path.relative_to(root).as_posix()} {sha256(path)}" for path in paths).encode()).hexdigest()
 
@@ -53,9 +53,14 @@ def log_epoch(mlflow, row):
 
 
 def score_metrics(report):
-    return {f"{report['split']}.{task}.{method}.{metric}": value
-            for task in ("state", "forecast") for method, values in report[task].items()
-            for metric, value in values.items() if isinstance(value, (int, float))}
+    metrics = {f"{report['split']}.{task}.{method}.{metric}": value
+               for task in ("state", "forecast") for method, values in report[task].items()
+               if isinstance(values, dict) for metric, value in values.items()
+               if isinstance(value, (int, float))}
+    metrics.update({f"{report['split']}.stages.{name}": value
+                    for name, value in report.get("stages", {}).items()
+                    if isinstance(value, (int, float))})
+    return metrics
 
 
 def store_candidate(args, *, imported=False):

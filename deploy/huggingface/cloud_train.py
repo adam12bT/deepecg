@@ -7,11 +7,12 @@ from tempfile import TemporaryDirectory
 
 from deploy.huggingface.release import ARCHIVE, checked_repo_id
 from sleepops.files import read_json, sha256, write_json
-from sleepops.lifecycle import evaluate_release, find_run, store_candidate
 from sleepops.registry import RELEASE_FILES, check_quality, validate_bundle
 
 
 def fit(args):
+    from sleepops.lifecycle import evaluate_release, find_run, store_candidate
+
     run_id = store_candidate(args)
     output = find_run(args.runtime, run_id)
     _, validation, _ = validate_bundle(output)
@@ -24,16 +25,27 @@ def fit(args):
         "source_revision": os.getenv("GITHUB_SHA"),
         "github_run_id": os.getenv("GITHUB_RUN_ID"),
         "github_run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
+        "space_id": os.getenv("SPACE_ID"),
         "test_evaluated": args.evaluate_test,
         "validation_gates": gates,
     })
     if github_output := os.getenv("GITHUB_OUTPUT"):
         with Path(github_output).open("a", encoding="utf-8") as stream:
             stream.write(f"candidate={run_id}\n")
+    return run_id
+
+
+def candidate_files(test_evaluated):
+    files = (*RELEASE_FILES, "training_log.json")
+    if test_evaluated:
+        files += ("test_metrics.json", "heldout_forecast.png")
+    return (*files, "cloud_run.json")
 
 
 def publish(args):
     from huggingface_hub import HfApi, get_token
+
+    from sleepops.lifecycle import find_run
 
     output = find_run(args.runtime, args.run)
     metadata, validation, _ = validate_bundle(output)
@@ -49,9 +61,7 @@ def publish(args):
         raise ValueError(f"The training bucket {bucket} must be private.")
 
     folder = f"training-runs/{args.run}"
-    files = [*RELEASE_FILES, "training_log.json", "cloud_run.json"]
-    if run["test_evaluated"]:
-        files.extend(("test_metrics.json", "heldout_forecast.png"))
+    files = candidate_files(run["test_evaluated"])
     api.batch_bucket_files(bucket, add=[(str(output / name), f"{folder}/{name}") for name in files])
     with TemporaryDirectory() as restored:
         target = Path(restored)
@@ -81,9 +91,10 @@ def main():
     commands = parser.add_subparsers(dest="action", required=True)
     train = commands.add_parser("fit")
     train.add_argument("--epochs", type=int, choices=range(1, 21), metavar="1–20", required=True)
+    train.add_argument("--archive", type=Path, default=Path(ARCHIVE))
+    train.add_argument("--lock", type=Path, default=Path("configs/dataset.json"))
     train.add_argument("--evaluate-test", action="store_true")
-    train.set_defaults(config=Path("configs/train.toml"), archive=Path(ARCHIVE), lock=Path("configs/dataset.json"),
-                       device="cpu", promote=False)
+    train.set_defaults(config=Path("configs/train.toml"), device="cpu", promote=False)
     upload = commands.add_parser("publish")
     upload.add_argument("--bucket", required=True)
     upload.add_argument("--run", required=True)

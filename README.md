@@ -14,13 +14,15 @@ The project also runs as **SleepOps**, with a React EEG dashboard, tracked train
 
 The [Hugging Face guide](HUGGING_FACE.md) covers the hosted app, private training-data bucket, and DVC commands for restoring the archive.
 
-## Reproduce training in Colab
+## Train the two-stage model
 
-1. Open `Sleep_Wake_Training_Colab.ipynb` and upload `sleep_edf_wake_data.npz` to `/content`. Set `ARCHIVE_PATH` in the first code cell if you store it elsewhere.
-2. Run all cells. Choose a GPU runtime for faster training. The notebook also runs on a CPU runtime. Its default run uses seed 495, 20 maximum epochs, and validation-based early stopping.
-3. Download `artifacts/best_checkpoint.pt`, `artifacts/demo_windows.npz`, `artifacts/training_log.json`, `artifacts/test_metrics.json`, and `artifacts/heldout_forecast.png` before ending the Colab session.
+The checked-in archive is schema v1 and has binary wake/sleep labels only. It cannot train the detailed sleep-stage classifier until the expert stage labels are added.
 
-To regenerate the archive, run `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb` with `MAX_SUBJECTS = None`. It downloads the public Sleep Cassette recordings and exports `/content/sleep_edf_wakeup/sleep_edf_wake_data.npz`. The training notebook detects that path. The project archive was regenerated with the supplied notebook after the original export could not be located. It preserves the preprocessing notebook’s seed-42 subject assignments.
+1. Open `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb`. Its default path asks for the existing schema-v1 archive, downloads the expert hypnograms, and adds five-class labels. It preserves the existing EEG features, forecast targets, recording metadata, and subject splits. Download the schema-v2 archive from Colab.
+2. For Colab training, open `Sleep_Stage_Awakening_Training_Colab.ipynb`, upload the new archive, and run all cells. Choose a GPU runtime for faster training; CPU is supported. The notebook streams losses and downloads the checkpoint with training, validation, test, and probability-plot reports.
+3. For hosted training, open **Data**, upload the schema-v2 archive as a new version of the original dataset, then use **Train a model** and select the version marked **five sleep stages**. The resulting checkpoint is a candidate until it passes validation gates and is deployed.
+
+Set `UPGRADE_EXISTING_ARCHIVE = False` only when rebuilding EEG features from raw EDF recordings. That route downloads the public PSG files as well as hypnograms.
 
 ## Run the React dashboard
 
@@ -41,7 +43,7 @@ delta_relative_power, theta_relative_power, alpha_relative_power, sigma_relative
 log_rms
 ```
 
-The demo loads the training means and scales from the checkpoint. It shows the ten sleep probabilities and the latest state decision. When the final epoch crosses the 0.5 sleep threshold, it shows the full forecast and the probability of a sustained awakening within the hour.
+The demo loads the training means and scales from the checkpoint. A v2 checkpoint also shows the five-class stage timeline. When the final epoch crosses the 0.5 sleep threshold, it shows the forecast and the probability of a sustained awakening within the hour. Every inference window contains only ten completed epochs ending at prediction time.
 
 ## Evaluation files
 
@@ -51,9 +53,9 @@ The demo loads the training means and scales from the checkpoint. It shows the t
 
 Detection is evaluated once per scored epoch around the sleep period. Forecasting is evaluated on eligible windows whose final epoch is expert-scored Sleep and whose outcome can be determined from the available annotations.
 
-## Results from the full run
+## Existing binary-model baseline
 
-The notebook ran locally on an NVIDIA GeForce RTX 3060 Laptop GPU with PyTorch 2.6.0+cu124. Validation selected epoch 4 of 9 with mean loss 1.0100. Perturbing later epochs changed earlier sleep logits by at most 0. The test split contained 16 people and 32 recordings.
+These actual results are from the existing v1 binary CNN–Transformer, not from the new stage-aware model. The run used an NVIDIA GeForce RTX 3060 Laptop GPU with PyTorch 2.6.0+cu124. Validation selected epoch 4 of 9 with mean loss 1.0100. Perturbing later epochs changed earlier sleep logits by at most 0. The test split contained 16 people and 32 recordings.
 
 | Task and method | Balanced accuracy | Macro F1 | Multiclass log loss | Within-hour Brier |
 |---|---:|---:|---:|---:|
@@ -67,7 +69,7 @@ Detection counted 40,460 unique test epochs. Confusion matrix rows are true labe
 - Shared model `[[10850, 2487], [803, 26320]]`
 - Logistic regression `[[10700, 2637], [2423, 24700]]`
 
-Forecasting was scored on 6,365 test windows. The probability plot in the full project bundle shows recording `SC4071`. The CPU path was smoke-tested end to end for one epoch using six subjects drawn from the original training split.
+Forecasting was scored on 6,365 test windows. The probability plot in the project bundle shows recording `SC4071`. The CPU path for v1 was smoke-tested for one epoch using six subjects from the original training split. The stage-aware v2 model has not been trained or evaluated yet; its held-out metrics will be produced when the training notebooks or Admin trainer run on a schema-v2 archive.
 
 ## Data attribution
 

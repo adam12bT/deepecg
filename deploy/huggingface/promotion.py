@@ -167,8 +167,10 @@ def prepare(api, bucket, space, candidate_id, request_id, work):
         raise ValueError("Candidate identity and evaluation cohort must match the deployment request and live model.")
     release.pull_assets(api, bucket, release.ASSETS)
     baseline_metadata = read_json(active / "metadata.json")
-    active_score = checkpoint_loss(release.ROOT / release.MODEL, baseline_metadata["file_sha256"][CHECKPOINT])
-    candidate_score = checkpoint_loss(run / CHECKPOINT, metadata["file_sha256"][CHECKPOINT])
+    active_score = checkpoint_loss(release.ROOT / release.MODEL, baseline_metadata["file_sha256"][CHECKPOINT],
+                                   baseline_metadata["file_sha256"]["validation_metrics.json"])
+    candidate_score = checkpoint_loss(run / CHECKPOINT, metadata["file_sha256"][CHECKPOINT],
+                                      metadata["file_sha256"]["validation_metrics.json"])
     if candidate_score >= active_score:
         raise ValueError("The candidate does not improve on the live validation loss.")
     restore_dataset(api, bucket, work, run, lock)

@@ -1,0 +1,41 @@
+{
+  "active_release": "bcade40f7b96403fbf096748da70e173",
+  "docker_compose": {
+    "configuration": "passed",
+    "container_execution": "blocked by unavailable Docker engine",
+    "github_actions_smoke": "passed"
+  },
+  "github_actions": {
+    "status": "passed",
+    "url": "https://github.com/adam12bT/deepecg/actions/runs/45352925733"
+  },
+  "live_http_api": "passed on Windows loopback",
+  "mlflow": {
+    "status": "passed",
+    "tracked_artifacts": 8,
+    "tracked_epoch_points": 9
+  },
+  "promotion_and_rollback": "passed",
+  "pytest": {
+    "status": "passed",
+    "tests": 11
+  },
+  "python_wheel": "built",
+  "streamlit": {
+    "live_api": "passed for awake and asleep examples",
+    "local_checkpoint": "passed"
+  },
+  "training": {
+    "device": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "epochs": 9,
+    "selected_epoch": 4,
+    "status": "passed"
+  },
+  "frontend": {
+    "framework": "React",
+    "node_tests": 2,
+    "production_build": "passed",
+    "desktop_and_mobile": "passed",
+    "live_hosted_frontend": "passed"
+  }
+}

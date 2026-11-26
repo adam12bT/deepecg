@@ -1,6 +1,6 @@
 # SleepOps
 
-The repository extends the CS495 causal CNN–Transformer into an end-to-end workflow. The bundle includes the original Colab work, the versioned Sleep-EDF feature archive, and an active release from a full GPU training run through the CLI.
+The repository extends the CS495 EEG model into an end-to-end workflow. Schema-v1 archives use the original binary CNN and Transformer. Schema-v2 archives add five scored sleep-stage labels and enable a two-stage pipeline: an MLP predicts Wake/N1/N2/N3/REM for each epoch, then the awakening forecaster receives normalized EEG features concatenated with the five stage probabilities. The DVC base archive remains v1; its verified stage-labelled v2 dataset is stored as a version in the private dataset bucket. The trained stage-aware pipeline is available in Admin as a review candidate and has its own DVC model pointer.
 
 ```mermaid
 flowchart LR
@@ -12,7 +12,10 @@ flowchart LR
     F --> G[React EEG dashboard]
     F --> H[Prometheus metrics]
     E --> I[Final test evaluation]
+    E --> J[Admin behavior replay and model comparison]
 ```
+
+The stage-aware run was evaluated on 16 held-out people. Stage classification reached macro F1 **0.651** and balanced accuracy **0.651**. Sleep/wake balanced accuracy was **0.850** versus **0.856** for the logistic baseline; sleep/wake macro F1 was **0.860** versus **0.858**. Awakening log loss was **1.812** versus **1.855** for the training-class prior, and within-hour Brier score was **0.235** versus **0.252**. It remains a review candidate: its validation detection metrics miss the configured promotion gates, so the UI and CI must not promote it as production.
 
 ## Run the demo stack
 
@@ -48,7 +51,9 @@ python -m sleepops validate --lock configs/dataset.json
 python -m sleepops train --config configs/train.toml --device auto
 ```
 
-The archive lock records its SHA-256, feature order, split membership fingerprints, and split sizes. Train and evaluation refuse a mismatched archive. Training uses the original subject assignments, fits the scaler on training epochs, and selects the lowest mean of the validation detection BCE and forecasting cross-entropy. The CLI prints a run ID. MLflow records per-epoch losses, parameters, archive and code fingerprints, validation baseline comparisons, and the checkpoint.
+The archive lock records its SHA-256, feature order, split membership fingerprints, and split sizes. Train and evaluation refuse a mismatched archive. Both pipelines preserve subject-wise splits and fit normalization on training epochs only. The v1 model selects by the mean of validation detection BCE and forecast cross-entropy. For v2, the stage classifier is selected on validation stage cross-entropy; subject-grouped out-of-fold stage probabilities are generated for training examples; and the awakening forecaster is selected on validation forecast cross-entropy. Test subjects are evaluated only after selection. MLflow records losses, parameters, archive and code fingerprints, validation baseline comparisons, and the checkpoint.
+
+To create schema v2 without recomputing EEG features, run `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb` and upload the existing schema-v1 archive when prompted. It downloads expert hypnograms, checks them against the archived binary labels, adds five-class stage labels, and retains the original subject splits and EEG arrays. The current stage-labelled archive is already registered in **Admin > Data**; choose that version for future stage-aware training. `Sleep_Stage_Awakening_Training_Colab.ipynb` is the standalone Colab training and evaluation route.
 
 ```sh
 mlflow ui --backend-store-uri sqlite:///runtime/mlflow.db --host 127.0.0.1 --port 5000

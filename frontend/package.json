@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "dev:admin": "vite --config vite.admin.config.js --host 127.0.0.1",
+    "build:admin": "vite build --config vite.admin.config.js",
     "test": "node --test"
   },
   "dependencies": {

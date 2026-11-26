@@ -32,8 +32,13 @@ def load_upload(path, expected):
     try:
         with ZipFile(path) as archive:
             entries = archive.infolist()
-            require(len(entries) == len(expected) and {f"{key}.npy" for key in expected} == {
-                entry.filename for entry in entries}, "Use the complete NPZ schema exported by the preprocessing notebook.")
+            uploaded = {entry.filename[:-4] for entry in entries}
+            allowed = set(expected)
+            if "y_stage" not in allowed:
+                allowed.add("y_stage")
+            require(len(entries) == len(uploaded) and uploaded in (set(expected), allowed)
+                    and {f"{key}.npy" for key in uploaded} == {entry.filename for entry in entries},
+                    "Upload a complete SleepOps NPZ archive, optionally with five-class stage labels.")
             require(sum(entry.file_size for entry in entries) <= MAX_EXPANDED, "The expanded archive is too large.")
             for entry in entries:
                 with archive.open(entry) as member:
@@ -44,15 +49,15 @@ def load_upload(path, expected):
                     require(not dtype.hasobject and math.prod(shape) * dtype.itemsize == entry.file_size - member.tell(),
                             "The upload contains an invalid or object-valued array.")
         with np.load(path, allow_pickle=False) as archive:
-            return {key: archive[key] for key in expected}
+            return {key: archive[key] for key in archive.files}
     except (BadZipFile, EOFError, OSError, NotImplementedError) as error:
         raise ValueError("The attachment could not be read as a NumPy NPZ archive.") from error
 
 
 def group(key):
-    if key.startswith("record_"):
+    if key == "record_id" or key.startswith("record_"):
         return "record"
-    if key.startswith("state_") or key in {"X_state", "y_state"}:
+    if key.startswith("state_") or key in {"X_state", "y_state", "y_stage"}:
         return "state"
     if key.startswith("forecast_") or key in {"X_forecast", "y_forecast_min"}:
         return "forecast"
@@ -72,8 +77,24 @@ def append_recordings(base, incoming):
     require(all(originals[record] == subject for record, subject in zip(records, subjects) if record in originals),
             "A recording ID was reassigned to a different subject.")
     new_records = {record for record in records if record not in originals}
-    require(bool(new_records), "There are no new recording IDs in this upload.")
+    if not new_records:
+        require("y_stage" in incoming and "y_stage" not in base,
+                "There are no new recording IDs or stage labels to add.")
+        for key, original in base.items():
+            if key != "schema_version":
+                require(np.array_equal(original, incoming[key]),
+                        f"A stage-label upload cannot change existing data in {key}.")
+        stages = incoming["y_stage"]
+        require(stages.shape == base["y_state"].shape and np.isin(stages, np.arange(5)).all(),
+                "Provide one Wake, N1, N2, N3, or REM label for each existing scored epoch.")
+        require(np.array_equal(base["y_state"], stages != 0),
+                "The stage labels disagree with the existing sleep/wake labels.")
+        upgraded = {**base, "y_stage": stages, "schema_version": np.asarray(2, dtype=np.int64)}
+        return upgraded, {"recordings": 0, "subjects": 0, "stateEpochs": 0,
+                          "forecastWindows": 0, "skippedRecordings": 0, "stageLabels": len(stages)}
     new_rows = np.isin(records, list(new_records))
+    require(("y_stage" in incoming) == ("y_stage" in base),
+            "The upload and selected dataset must both include five-class stage labels, or both omit them.")
     held_out = {subject.casefold() for subject in base["record_subject_id"][base["record_split"] != "train"]}
     require(not held_out.intersection(subject.casefold() for subject in subjects[new_rows]),
             "A new recording belongs to an existing validation or test subject.")
@@ -107,7 +128,8 @@ def append_recordings(base, incoming):
         merged[key] = np.concatenate((original, added))
     return merged, {"recordings": len(new_records), "subjects": len(set(subjects[new_rows]) - set(originals.values())),
                     "stateEpochs": int(masks["state"].sum()), "forecastWindows": int(masks["forecast"].sum()),
-                    "skippedRecordings": record_count - len(new_records)}
+                    "skippedRecordings": record_count - len(new_records),
+                    "stageLabels": int(masks["state"].sum()) if "y_stage" in incoming else 0}
 
 
 class DatasetStore:
@@ -211,7 +233,9 @@ class DatasetStore:
             np.savez_compressed(archive, **merged)
             require(archive.stat().st_size <= MAX_ARCHIVE, "The merged dataset exceeds 48 MiB.")
             _, manifest = load_dataset(archive)
-            require(all(manifest["splits"][split] == current["splits"][split] for split in ("validation", "test")),
+            require(all({key: value for key, value in manifest["splits"][split].items() if key != "stage_counts"}
+                        == {key: value for key, value in current["splits"][split].items() if key != "stage_counts"}
+                        for split in ("validation", "test")),
                     "The existing held-out cohorts must be preserved.")
             key = manifest["archive_sha256"]
             release = self.versions / "releases" / key
@@ -240,5 +264,7 @@ class DatasetStore:
 
 
 def chart_metadata():
-    return {"features": FEATURE_NAMES, "forecastLabels": CLASS_LABELS, "splits": SPLITS, "maxUploadBytes": MAX_UPLOAD,
+    return {"features": FEATURE_NAMES, "forecastLabels": CLASS_LABELS,
+            "stageNames": ("Wake", "N1", "N2", "N3", "REM"),
+            "splits": SPLITS, "maxUploadBytes": MAX_UPLOAD,
             "previewEpochs": PREVIEW_EPOCHS}

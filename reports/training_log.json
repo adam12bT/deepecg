@@ -1,0 +1,101 @@
+{
+  "config": {
+    "seed": 495,
+    "max_epochs": 20,
+    "patience": 5,
+    "batch_size": 512,
+    "learning_rate": 0.001,
+    "weight_decay": 0.01,
+    "dropout": 0.1
+  },
+  "hardware": "NVIDIA GeForce RTX 3060 Laptop GPU",
+  "torch_version": "2.6.0+cu124",
+  "precision": "bfloat16 autocast",
+  "history": [
+    {
+      "epoch": 1,
+      "train_bce": 0.303433895111084,
+      "train_ce": 1.9934000968933105,
+      "val_bce": 0.2407403141260147,
+      "val_ce": 1.8745194673538208,
+      "val_mean": 1.0576298907399178,
+      "seconds": 9.52
+    },
+    {
+      "epoch": 2,
+      "train_bce": 0.22742128372192383,
+      "train_ce": 1.959645390510559,
+      "val_bce": 0.2114395797252655,
+      "val_ce": 1.82252836227417,
+      "val_mean": 1.0169839709997177,
+      "seconds": 8.51
+    },
+    {
+      "epoch": 3,
+      "train_bce": 0.21382702887058258,
+      "train_ce": 1.950169324874878,
+      "val_bce": 0.200478658080101,
+      "val_ce": 1.829707145690918,
+      "val_mean": 1.0150929018855095,
+      "seconds": 8.76
+    },
+    {
+      "epoch": 4,
+      "train_bce": 0.20681160688400269,
+      "train_ce": 1.946468472480774,
+      "val_bce": 0.20224453508853912,
+      "val_ce": 1.817829966545105,
+      "val_mean": 1.010037250816822,
+      "seconds": 8.64
+    },
+    {
+      "epoch": 5,
+      "train_bce": 0.20326989889144897,
+      "train_ce": 1.9395265579223633,
+      "val_bce": 0.18623189628124237,
+      "val_ce": 1.8381506204605103,
+      "val_mean": 1.0121912583708763,
+      "seconds": 8.43
+    },
+    {
+      "epoch": 6,
+      "train_bce": 0.1973685473203659,
+      "train_ce": 1.933988332748413,
+      "val_bce": 0.1927850991487503,
+      "val_ce": 1.849971055984497,
+      "val_mean": 1.0213780775666237,
+      "seconds": 8.33
+    },
+    {
+      "epoch": 7,
+      "train_bce": 0.1951780915260315,
+      "train_ce": 1.9282457828521729,
+      "val_bce": 0.18557442724704742,
+      "val_ce": 1.837615966796875,
+      "val_mean": 1.0115951970219612,
+      "seconds": 8.25
+    },
+    {
+      "epoch": 8,
+      "train_bce": 0.1928730607032776,
+      "train_ce": 1.9223564863204956,
+      "val_bce": 0.19154046475887299,
+      "val_ce": 1.866308569908142,
+      "val_mean": 1.0289245173335075,
+      "seconds": 8.56
+    },
+    {
+      "epoch": 9,
+      "train_bce": 0.19155047833919525,
+      "train_ce": 1.9130752086639404,
+      "val_bce": 0.1828693300485611,
+      "val_ce": 1.876699686050415,
+      "val_mean": 1.029784508049488,
+      "seconds": 8.28
+    }
+  ],
+  "best_epoch": 4,
+  "best_validation_mean": 1.010037250816822,
+  "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "checkpoint_causality_max_change": 0.0
+}

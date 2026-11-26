@@ -1,0 +1,67 @@
+{
+  "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "awakenings_within_hour": 2755,
+  "causality_max_delta": 0.0,
+  "forecast": {
+    "shared_model": {
+      "multiclass_log_loss": 1.8178299502108233,
+      "within_hour_brier": 0.24893121687368527
+    },
+    "training_class_distribution": {
+      "multiclass_log_loss": 1.8351231866907702,
+      "within_hour_brier": 0.25314083173428686
+    }
+  },
+  "forecast_train_class_counts": [
+    1376,
+    1087,
+    989,
+    832,
+    787,
+    704,
+    679,
+    623,
+    593,
+    551,
+    535,
+    485,
+    8203
+  ],
+  "forecast_windows": 5962,
+  "recordings": 32,
+  "selected_epoch": 4,
+  "split": "validation",
+  "state": {
+    "logistic_regression": {
+      "balanced_accuracy": 0.8459319015746207,
+      "confusion_matrix": [
+        [
+          8984,
+          2539
+        ],
+        [
+          2342,
+          24334
+        ]
+      ],
+      "macro_f1": 0.8476149931967019
+    },
+    "shared_model": {
+      "balanced_accuracy": 0.8838737914653589,
+      "confusion_matrix": [
+        [
+          9242,
+          2281
+        ],
+        [
+          915,
+          25761
+        ]
+      ],
+      "macro_f1": 0.8970872291328271
+    }
+  },
+  "state_epochs": 38199,
+  "state_short_history_epochs": 603,
+  "subjects": 16
+}

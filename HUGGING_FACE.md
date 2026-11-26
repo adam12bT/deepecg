@@ -1,6 +1,6 @@
 # SleepOps on Hugging Face
 
-The deployment uses a private CPU Docker Space for the React dashboard and FastAPI service. DVC versions the prepared EEG training archive and the promoted checkpoint. A separate private Hugging Face Storage Bucket holds both files. The Space upload contains their DVC pointers and checksums, the source code, the serving checkpoint, and the held-out demo windows.
+The deployment uses a private CPU Docker Space for the React dashboard and FastAPI service. DVC versions the prepared EEG training archive, the promoted checkpoint, and the complete stage-aware candidate checkpoint. A separate private Hugging Face Storage Bucket holds these objects. A private Admin Space lists and compares candidates and can replay held-out windows to inspect stage and awakening predictions.
 
 ## Deploy from this repository
 
@@ -20,20 +20,21 @@ Open the Space page to use the demo. On the Space app host, API endpoints are pr
 
 GitHub Actions runs `.github/workflows/ci.yml` from the source repository. For public GitHub hosting, create a source export with `python deploy/huggingface/release.py stage --github-source --output PATH_TO_EMPTY_DIRECTORY`. The export includes code, DVC pointers, release metadata, and notebooks with cleared outputs. Pull requests run code tests with synthetic data. On the deployment branch, the trusted job restores the private DVC files, regenerates the demo windows, runs the full tests, and smoke-tests the containers before publishing the Space.
 
-The intended GitHub source is `adam12bT/deepecg`. Configure the following repository settings.
+The intended GitHub source is `adam12bT/deepecg`. Pushes to `sleepops` run tests and, when the required Hugging Face settings exist, update both the prediction Space and the Docker Admin Space. Configure the following repository settings.
 
 | Name | Repository setting | Value |
 |---|---|---|
-| `SLEEPOPS_DEPLOY_BRANCH` | Actions variable | `sleepops` for a separate deployment branch. Defaults to `main`. |
+| `SLEEPOPS_DEPLOY_BRANCH` | Actions variable | `sleepops` for a separate deployment branch. Defaults to `sleepops`. |
 | `SLEEPOPS_HF_SPACE` | Actions variable | `adamnouassida5/assistance` after the owner approves reusing it |
 | `SLEEPOPS_HF_BUCKET` | Actions variable | `adamnouassida5/sleepops-eeg-data` |
+| `SLEEPOPS_TRAINING_SPACE` | Actions variable | `adamnouassida5/the_dot_camp5` (the workflow default) |
 | `HF_DEPLOY_TOKEN` | Actions secret | Hugging Face token with access to write the private Space and bucket |
 
-The first deployment seeds the private bucket with the local archive and checkpoint. For later releases, seed new DVC objects before pushing updated pointers and locks to the deployment branch. The job restores and validates the exact dataset and checkpoint, re-publishes their verified DVC objects, updates the Docker Space, and waits for live checks. [GitHub Actions secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
+The first deployment seeds the private bucket with the local archive and checkpoint. For later releases, seed new DVC objects before pushing updated pointers and locks to the deployment branch. The job restores and validates the exact dataset and checkpoints, re-publishes their verified DVC objects, updates the prediction Space, and publishes the React Admin app to the existing Docker training Space. [GitHub Actions secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 
 ### Cloud training
 
-Run **SleepOps cloud training** on the deployment branch from the GitHub Actions tab. The manual launch button appears when the workflow exists on the repository's default branch. Cloud training reuses the bucket setting and `HF_DEPLOY_TOKEN` above. It restores the DVC-pinned archive and saves each candidate's weights, normalizer, loss history, validation comparison, and optional held-out test report in `training-runs/<run-id>/` in the private bucket. The production checkpoint is versioned independently through its existing DVC pointer and release workflow. [GitHub manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+Run **SleepOps cloud training** on the deployment branch from the GitHub Actions tab. The manual launch button appears when the workflow exists on the repository's default branch. Cloud training reuses the bucket setting and `HF_DEPLOY_TOKEN` above. It restores the DVC-pinned archive and saves each candidate's weights, normalizer, loss history, validation comparison, and optional held-out test report in `training-runs/<run-id>/` in the private bucket. The promoted production checkpoint and the stage-aware pipeline checkpoint have separate DVC pointers. [GitHub manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
 
 ### Reuse the existing `assistance` Space
 
@@ -50,6 +51,7 @@ After cloning the Space repository and signing in, the Hugging Face CLI login is
 ```sh
 python deploy/huggingface/release.py pull-data --bucket NAMESPACE/sleepops-eeg-data
 python deploy/huggingface/release.py pull-model --bucket NAMESPACE/sleepops-eeg-data
+python deploy/huggingface/release.py pull-stage-model --bucket NAMESPACE/sleepops-eeg-data
 python -m sleepops validate --lock configs/dataset.json
 ```
 

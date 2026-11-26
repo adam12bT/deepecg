@@ -1,0 +1,67 @@
+{
+  "space_destination": "adamnouassida5/assistance",
+  "bucket_destination": "adamnouassida5/sleepops-eeg-data",
+  "privacy": "private Space and private bucket",
+  "dvc_pointer": "sleep_edf_wake_data.npz.dvc",
+  "dataset_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+  "dataset_bytes": 13245587,
+  "verified": [
+    "DVC add, local push and restore with an empty cache",
+    "locked SHA-256",
+    "Streamlit WebSocket through the proxy",
+    "FastAPI prediction, metrics and OpenAPI through the proxy",
+    "Compose configuration",
+    "Best model and training archive pushed to local DVC remote and restored into an empty cache",
+    "GitHub Actions workflow passed actionlint",
+    "Live loopback verification accepted the new build and rejected a stale build marker",
+    "10 local pytest tests",
+    "public source-only CI passed on GitHub",
+    "private CI checkout hydrated from local DVC objects and passed all local tests",
+    "mock Space reuse preserved old revision and verified privacy before committing",
+    "Private bucket data and checkpoint restored from Hugging Face with exact SHA-256 hashes",
+    "Private Space live Streamlit health, build and model hashes, and prediction",
+    "Remote rollback branch resolves to the previous Space commit",
+    "GitHub Actions restored and validated both DVC objects, passed tests and container smoke checks, and deployed the Space",
+    "Authenticated live recheck matched the GitHub-triggered source, model, and dataset hashes",
+    "Production React UI tested in Chromium on desktop and mobile with the real API, CSV and NumPy uploads",
+    "Live React JavaScript and CSS served from the private Space; model returned ten sleep probabilities and a 13-bin forecast"
+  ],
+  "cloud_status": "live; private Space and private DVC bucket verified",
+  "model_pointer": "best_model.pt.dvc",
+  "model": {
+    "file": "best_model.pt",
+    "release_id": "bcade40f7b96403fbf096748da70e173",
+    "selected_epoch": 4,
+    "checkpoint_sha256": "de4031399fc6f6bd2cb4bfd765bd84e4df032896b338f50a433101eebbafb12c",
+    "archive_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+    "bytes": 296485
+  },
+  "github_actions_status": "successful end-to-end CI/CD with private DVC restore and live Space verification",
+  "space_current_revision": "4fa09c02c6c4afc46b8078e8225228b195238530",
+  "github": {
+    "repository": "adam12bT/deepecg",
+    "branch": "sleepops",
+    "deployment_branch_configured": true,
+    "commit": "41d35b64a15150e0a92fd424dff41802c81519c4",
+    "ci_url": "https://github.com/adam12bT/deepecg/actions/runs/45294146455",
+    "ci_result": "success",
+    "cd_url": "https://github.com/adam12bT/deepecg/actions/runs/45352925733",
+    "cd_result": "success"
+  },
+  "deployed_space": {
+    "id": "adamnouassida5/assistance",
+    "private": true,
+    "status": "RUNNING",
+    "commit": "579f93a45c6770d8f029c7078e50bafdce4019dd",
+    "build_id": "da02f18e85ea418791ad76a2f759bf63",
+    "active_model_release": "bcade40f7b96403fbf096748da70e173",
+    "rollback_branch": "before-sleepops-4fa09c02c6c4",
+    "rollback_commit": "4fa09c02c6c4afc46b8078e8225228b195238530",
+    "frontend": "React"
+  },
+  "deployed_bucket": {
+    "id": "adamnouassida5/sleepops-eeg-data",
+    "private": true,
+    "dvc_objects": 2
+  }
+}

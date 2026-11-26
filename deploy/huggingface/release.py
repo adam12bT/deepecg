@@ -18,7 +18,9 @@ from uuid import uuid4
 ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE = "sleep_edf_wake_data.npz"
 MODEL = "best_model.pt"
+STAGE_MODEL = "stage_aware_model.pt"
 MODEL_LOCK = Path("configs/best_model.json")
+STAGE_MODEL_LOCK = Path("configs/stage_aware_model.json")
 ASSETS = (ARCHIVE, MODEL)
 REMOTE = "hf-bucket"
 PREFIX = "dvc-store"
@@ -48,6 +50,20 @@ def verify_archive(path):
 def verify_asset(asset, path):
     if asset == ARCHIVE:
         verify_archive(path)
+        return
+    if asset == STAGE_MODEL:
+        manifest = json.loads((ROOT / STAGE_MODEL_LOCK).read_text(encoding="utf-8"))
+        if (manifest.get("file") != STAGE_MODEL or path.stat().st_size != manifest.get("bytes")
+                or sha256(path) != manifest.get("checkpoint_sha256")):
+            raise ValueError(f"{path.name} does not match the stage-aware model lock.")
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from eeg_model import load_checkpoint
+
+        _, _, _, payload = load_checkpoint(path)
+        if (payload.get("version") != 2
+                or payload.get("archive_sha256") != manifest.get("archive_sha256")):
+            raise ValueError("The stage-aware checkpoint does not match its model lock.")
         return
     manifest = json.loads((ROOT / MODEL_LOCK).read_text(encoding="utf-8"))
     if path.stat().st_size != manifest["bytes"] or sha256(path) != manifest["checkpoint_sha256"]:
@@ -119,8 +135,11 @@ def build_manifest():
 
 def run_dvc(repo, *arguments):
     env = {**os.environ, "DVC_NO_ANALYTICS": "1",
+           "DVC_CACHE_DIR": str((repo / ".dvc/cache").resolve()),
            "DVC_SITE_CACHE_DIR": str((repo / ".dvc/site-cache").resolve())}
-    subprocess.run([sys.executable, "-m", "dvc", *map(str, arguments)], cwd=repo, env=env, check=True)
+    executable = shutil.which("dvc")
+    command = [executable, *map(str, arguments)] if executable else [sys.executable, "-m", "dvc", *map(str, arguments)]
+    subprocess.run(command, cwd=repo, env=env, check=True)
 
 
 def configure(bucket_id):
@@ -252,8 +271,10 @@ def stage(output, build=None, *, github_source=False):
         "README.md", "MLOPS.md", "HUGGING_FACE.md", "Dockerfile", "compose.yaml", "pyproject.toml",
         "requirements.txt", "eeg_data.py", "eeg_model.py", "demo.py", ".gitignore", ".dockerignore",
         "Sleep_Wake_Training_Colab.ipynb", "Sleep_EDF_Wake_Up_Prediction_Colab.ipynb",
+        "Sleep_Stage_Awakening_Training_Colab.ipynb",
         *(f"{asset}.dvc" for asset in ASSETS),
         ".dvc/config", ".dvc/.gitignore", "deploy/huggingface/aws-config",
+        f"{STAGE_MODEL}.dvc", str(STAGE_MODEL_LOCK),
     )]
     for directory in (".github", "configs", "deploy", "sleepops", "registry", "reports", "tests", "artifacts"):
         files.extend(path.relative_to(ROOT) for path in (ROOT / directory).rglob("*")
@@ -438,7 +459,8 @@ def main():
     status = actions.add_parser("space-status")
     status.add_argument("--space")
     status.add_argument("--wait-seconds", type=int, default=0)
-    for name in ("publish-data", "pull-data", "publish-model", "pull-model", "publish-space", "deploy"):
+    for name in ("publish-data", "pull-data", "publish-model", "pull-model", "publish-stage-model",
+                 "pull-stage-model", "publish-space", "deploy"):
         action = actions.add_parser(name)
         if name != "publish-space":
             action.add_argument("--bucket")
@@ -482,10 +504,13 @@ def main():
                 expected_head = target.sha if target is not None else None
             if args.action == "deploy":
                 publish_assets(api, bucket_id, ASSETS)
-            elif args.action in {"publish-data", "publish-model"}:
-                publish_assets(api, bucket_id, (ARCHIVE if args.action == "publish-data" else MODEL,))
-            elif args.action in {"pull-data", "pull-model"}:
-                pull_assets(api, bucket_id, (ARCHIVE if args.action == "pull-data" else MODEL,))
+            elif args.action in {"publish-data", "publish-model", "publish-stage-model"}:
+                asset = {"publish-data": ARCHIVE, "publish-model": MODEL,
+                         "publish-stage-model": STAGE_MODEL}[args.action]
+                publish_assets(api, bucket_id, (asset,))
+            elif args.action in {"pull-data", "pull-model", "pull-stage-model"}:
+                asset = {"pull-data": ARCHIVE, "pull-model": MODEL, "pull-stage-model": STAGE_MODEL}[args.action]
+                pull_assets(api, bucket_id, (asset,))
             if args.action in {"publish-space", "deploy"}:
                 work = ROOT / ".work"
                 work.mkdir(exist_ok=True)

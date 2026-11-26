@@ -190,6 +190,31 @@ details summary { color: #c7bbfb; cursor: pointer; font-size: .86rem; }
 .chart-placeholder svg { color: var(--violet); }
 .chart-placeholder p { font-size: .88rem; line-height: 1.5; }
 
+.stage-panel { padding: 21px; }
+.stage-status { color: #e6c586; background: #3a3023; border: 1px solid #59462c; border-radius: 7px; padding: 6px 9px; font-size: .75rem; }
+.stage-flow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.15fr) auto minmax(0, 1fr); align-items: center; gap: 10px; margin-top: 18px; }
+.stage-flow > div { display: grid; gap: 5px; min-height: 65px; align-content: center; padding: 11px 13px; border: 1px solid #354050; border-radius: 9px; background: #111923; }
+.stage-flow small { color: var(--muted); font-size: .72rem; }
+.stage-flow strong { color: #dfe9f6; font-size: .86rem; font-weight: 620; }
+.stage-flow > span { color: #83d6ca; font-size: 1.2rem; }
+.stage-notice { margin-top: 13px; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.stage-legend { display: flex; flex-wrap: wrap; justify-content: end; gap: 10px; }
+.stage-legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: .75rem; }
+.stage-color { display: inline-block; width: 8px; height: 8px; border-radius: 3px; }
+.stage-timeline { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; margin-top: 18px; }
+.stage-epoch { display: grid; align-content: center; justify-items: center; min-height: 57px; gap: 4px; border: 1px solid transparent; border-radius: 8px; }
+.stage-epoch strong { font-size: .78rem; }
+.stage-epoch span { font-size: .68rem; color: #e0e5ee; font-variant-numeric: tabular-nums; }
+.stage-0 { --stage-color: #e8b76e; color: #ffe1b5; background: #5e442c; border-color: #85603a; }
+.stage-1 { --stage-color: #a795ff; color: #e0d8ff; background: #423b65; border-color: #62558e; }
+.stage-2 { --stage-color: #75c7ee; color: #d3f1ff; background: #294e63; border-color: #3e708b; }
+.stage-3 { --stage-color: #5f9de3; color: #d4e7ff; background: #2b4568; border-color: #466a98; }
+.stage-4 { --stage-color: #e18abe; color: #ffd9ef; background: #5c3c55; border-color: #805477; }
+.stage-color.stage-0, .stage-color.stage-1, .stage-color.stage-2, .stage-color.stage-3, .stage-color.stage-4 { background: var(--stage-color); }
+.stage-axis { display: flex; justify-content: space-between; margin-top: 6px; padding-inline: 2px; color: var(--subtle); font-size: .72rem; }
+.stage-current { margin-top: 12px; color: var(--muted); font-size: .82rem; }
+.stage-current strong { color: var(--text); }
+
 .likely { display: grid; gap: 5px; padding: 13px 15px; margin-block: 16px; border: 1px solid #34445a; border-radius: 10px; background: #1b2938; }
 .likely span { color: var(--muted); font-size: .79rem; }
 .likely strong { color: #b8ebe7; font-size: .91rem; font-weight: 620; }
@@ -215,7 +240,7 @@ details summary { color: #c7bbfb; cursor: pointer; font-size: .86rem; }
   .stats { gap: 10px; }
   .stat { padding: 13px; }
   .stat-top { font-size: .78rem; }
-  .input-panel, .input-spec, .chart-panel, .forecast-panel { padding: 17px; }
+  .input-panel, .input-spec, .chart-panel, .stage-panel, .forecast-panel { padding: 17px; }
 }
 @media (max-width: 790px) {
   .dashboard { grid-template-columns: minmax(0, 1fr); }
@@ -234,10 +259,16 @@ details summary { color: #c7bbfb; cursor: pointer; font-size: .86rem; }
   .sidebar { display: contents; }
   .input-spec { order: 1; }
   .input-spec dl { margin-top: 7px; }
-  .input-panel, .input-spec, .chart-panel, .forecast-panel { padding: 14px; }
+  .input-panel, .input-spec, .chart-panel, .stage-panel, .forecast-panel { padding: 14px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stats > :last-child { grid-column: 1 / -1; min-height: 111px; }
   .panel-head { align-items: start; flex-direction: column; }
+  .stage-timeline { gap: 3px; }
+  .stage-flow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .stage-flow > span { justify-self: center; transform: rotate(90deg); font-size: 1rem; }
+  .stage-epoch { min-height: 49px; border-radius: 6px; }
+  .stage-epoch strong { font-size: .67rem; }
+  .stage-epoch span { font-size: .58rem; }
   .legend { justify-content: start; margin-left: 4px; }
   .chart { grid-template-columns: 36px minmax(0, 1fr); grid-template-rows: 154px min-content; gap: 5px; margin-top: 21px; }
   .plot, .x-labels { gap: 3px; }

@@ -1,0 +1,99 @@
+{
+  "metrics": {
+    "causality_max_delta": 0.0,
+    "seconds": 8.28,
+    "selected_validation_loss": 1.010037250816822,
+    "test.forecast.shared_model.multiclass_log_loss": 1.8071682380558154,
+    "test.forecast.shared_model.within_hour_brier": 0.23070324170004378,
+    "test.forecast.training_class_distribution.multiclass_log_loss": 1.8551361457459985,
+    "test.forecast.training_class_distribution.within_hour_brier": 0.2523482794415555,
+    "test.state.logistic_regression.balanced_accuracy": 0.8564727987050547,
+    "test.state.logistic_regression.macro_f1": 0.8579278612330394,
+    "test.state.shared_model.balanced_accuracy": 0.8919602053578612,
+    "test.state.shared_model.macro_f1": 0.9047619047619048,
+    "train_bce": 0.19155047833919525,
+    "train_ce": 1.9130752086639404,
+    "val_bce": 0.1828693300485611,
+    "val_ce": 1.876699686050415,
+    "val_mean": 1.029784508049488,
+    "validation.forecast.shared_model.multiclass_log_loss": 1.8178299502108233,
+    "validation.forecast.shared_model.within_hour_brier": 0.24893121687368527,
+    "validation.forecast.training_class_distribution.multiclass_log_loss": 1.8351231866907702,
+    "validation.forecast.training_class_distribution.within_hour_brier": 0.25314083173428686,
+    "validation.state.logistic_regression.balanced_accuracy": 0.8459319015746207,
+    "validation.state.logistic_regression.macro_f1": 0.8476149931967019,
+    "validation.state.shared_model.balanced_accuracy": 0.8838737914653589,
+    "validation.state.shared_model.macro_f1": 0.8970872291328271
+  },
+  "params": {
+    "batch_size": "512",
+    "dropout": "0.1",
+    "evaluation_device": "cuda",
+    "learning_rate": "0.001",
+    "max_epochs": "20",
+    "numpy": "2.4.6",
+    "patience": "5",
+    "python": "3.11.9",
+    "seed": "495",
+    "selected_epoch": "4",
+    "sklearn": "1.6.1",
+    "training_hardware": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "training_torch_version": "2.6.0+cu124",
+    "weight_decay": "0.01"
+  },
+  "provenance": {
+    "dataset_sha256": "dc45111d5cfd127e93fb7c4a960603b1305c2af9457c04e8092bd3bdce88307c",
+    "origin": "sleepops_training",
+    "source_sha256": "fb4d16e1228a3ace9d92b269a8fedc14041ec39eedc91c0f9db17061bec6c9e8"
+  },
+  "run_id": "bcade40f7b96403fbf096748da70e173",
+  "status": "FINISHED",
+  "tracked_artifacts": [
+    "best_checkpoint.pt",
+    "dataset.json",
+    "drift_reference.json",
+    "heldout_forecast.png",
+    "metadata.json",
+    "test_metrics.json",
+    "training_log.json",
+    "validation_metrics.json"
+  ],
+  "val_mean_by_epoch": [
+    {
+      "epoch": 1,
+      "loss": 1.0576298907399178
+    },
+    {
+      "epoch": 2,
+      "loss": 1.0169839709997177
+    },
+    {
+      "epoch": 3,
+      "loss": 1.0150929018855095
+    },
+    {
+      "epoch": 4,
+      "loss": 1.010037250816822
+    },
+    {
+      "epoch": 5,
+      "loss": 1.0121912583708763
+    },
+    {
+      "epoch": 6,
+      "loss": 1.0213780775666237
+    },
+    {
+      "epoch": 7,
+      "loss": 1.0115951970219612
+    },
+    {
+      "epoch": 8,
+      "loss": 1.0289245173335075
+    },
+    {
+      "epoch": 9,
+      "loss": 1.029784508049488
+    }
+  ]
+}
