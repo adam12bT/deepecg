@@ -99,7 +99,7 @@ jobs:
             echo "A newer commit owns the production deployment."
             exit 0
           fi
-          python deploy/huggingface/release.py deploy --space "$SLEEPOPS_HF_SPACE" --bucket "$SLEEPOPS_HF_BUCKET" --wait-seconds 900
+          python deploy/huggingface/release.py deploy --space "$SLEEPOPS_HF_SPACE" --bucket "$SLEEPOPS_HF_BUCKET" --reuse-existing --allow-public --wait-seconds 900
       - name: Publish the React Admin UI to its private Space
         env:
           HF_TOKEN: ${{ secrets.HF_DEPLOY_TOKEN }}

@@ -1,6 +1,6 @@
 # SleepOps on Hugging Face
 
-The deployment uses a private CPU Docker Space for the React dashboard and FastAPI service. DVC versions the prepared EEG training archive, the promoted checkpoint, and the complete stage-aware candidate checkpoint. A separate private Hugging Face Storage Bucket holds these objects. A private Admin Space lists and compares candidates and can replay held-out windows to inspect stage and awakening predictions.
+The prediction app deploys to the existing Docker Space and preserves its current visibility (`adamnouassida5/assistance` is public). DVC versions the prepared EEG training archive, the promoted checkpoint, and the complete stage-aware candidate checkpoint in a separate private Hugging Face Storage Bucket. The private Admin Space lists and compares candidates and can replay held-out windows to inspect stage and awakening predictions.
 
 ## Deploy from this repository
 
@@ -28,7 +28,7 @@ The intended GitHub source is `adam12bT/deepecg`. Pushes to `sleepops` run tests
 | `SLEEPOPS_HF_SPACE` | Actions variable | `adamnouassida5/assistance` after the owner approves reusing it |
 | `SLEEPOPS_HF_BUCKET` | Actions variable | `adamnouassida5/sleepops-eeg-data` |
 | `SLEEPOPS_TRAINING_SPACE` | Actions variable | `adamnouassida5/the_dot_camp5` (the workflow default) |
-| `HF_DEPLOY_TOKEN` | Actions secret | Hugging Face token with access to write the private Space and bucket |
+| `HF_DEPLOY_TOKEN` | Actions secret | Hugging Face token with access to write the prediction and Admin Spaces and private bucket |
 
 The first deployment seeds the private bucket with the local archive and checkpoint. For later releases, seed new DVC objects before pushing updated pointers and locks to the deployment branch. The job restores and validates the exact dataset and checkpoints, re-publishes their verified DVC objects, updates the prediction Space, and publishes the React Admin app to the existing Docker training Space. [GitHub Actions secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
 
@@ -38,10 +38,10 @@ Run **SleepOps cloud training** on the deployment branch from the GitHub Actions
 
 ### Reuse the existing `assistance` Space
 
-The following command is for the owner-approved takeover of the existing app. It preserves the old remote revision on a `before-sleepops-…` branch, verifies private visibility before uploading, and replaces the working tree in one commit. The commit is conditional on the old revision still being the head. To roll back in a clone of the Space, revert the SleepOps deployment commit and push the revert to `main`.
+The following command is for the owner-approved takeover of the existing public app. It preserves the old remote revision on a `before-sleepops-…` branch, keeps the Space public, and replaces the working tree in one commit. The commit is conditional on the old revision still being the head. To roll back in a clone of the Space, revert the SleepOps deployment commit and push the revert to `main`.
 
 ```sh
-python deploy/huggingface/release.py deploy --space adamnouassida5/assistance --bucket adamnouassida5/sleepops-eeg-data --reuse-existing --make-private --wait-seconds 900
+python deploy/huggingface/release.py deploy --space adamnouassida5/assistance --bucket adamnouassida5/sleepops-eeg-data --reuse-existing --allow-public --wait-seconds 900
 ```
 
 ## Restore the dataset and best model

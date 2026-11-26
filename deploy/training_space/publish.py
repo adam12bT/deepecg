@@ -87,8 +87,8 @@ def deploy(api, space, bucket, hardware, prediction_space=None):
     variables = [{"key": "SLEEPOPS_HF_BUCKET", "value": bucket}]
     seed_dataset_storage(api, bucket)
     if prediction_space:
-        if not api.space_info(prediction_space).private:
-            raise ValueError("The prediction release must come from a private Space.")
+        if api.space_info(prediction_space).sdk != "docker":
+            raise ValueError("The prediction release must come from a Docker Space.")
         variables.append({"key": "SLEEPOPS_PREDICTION_SPACE", "value": prediction_space})
     try:
         info = api.space_info(space)
@@ -123,8 +123,8 @@ def reuse_docker(api, space, bucket, prediction_space=None):
     runtime = api.get_space_runtime(space)
     if runtime.requested_hardware != "cpu-basic" or runtime.hardware not in {None, "cpu-basic"}:
         raise ValueError("The reused Space must already be configured for CPU Basic.")
-    if prediction_space and (prediction_space == space or not api.space_info(prediction_space).private):
-        raise ValueError("Choose a separate private Space for model reports.")
+    if prediction_space and (prediction_space == space or api.space_info(prediction_space).sdk != "docker"):
+        raise ValueError("Choose a separate Docker Space for model reports.")
     volumes = training_volumes(bucket, prediction_space)
     mount_paths = {volume.mount_path for volume in volumes}
     if any(volume.mount_path not in mount_paths for volume in existing.runtime.volumes or []):

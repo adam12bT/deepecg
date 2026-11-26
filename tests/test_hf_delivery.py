@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from deploy.huggingface.release import build_manifest, deployed_build_is_healthy, space_host
+from deploy.huggingface.release import build_manifest, deployed_build_is_healthy, space_host, space_target
 
 
 class StubClient:
@@ -57,3 +57,18 @@ def test_private_space_host_is_restricted_to_https_hf_spaces():
     for host in ("http://owner.hf.space", "https://hf.space.example.com", "https://owner.hf.space/path"):
         with pytest.raises(ValueError, match="hf.space"):
             space_host(SimpleNamespace(host=host, subdomain=None))
+
+
+def test_public_production_space_requires_explicit_allowlist():
+    class Api:
+        def space_info(self, repo_id):
+            return SimpleNamespace(sdk="docker", private=False, sha="head")
+
+        def list_repo_files(self, repo_id, *, repo_type, revision):
+            return ["deploy/huggingface/serve.py"]
+
+    api = Api()
+    with pytest.raises(ValueError, match="private Docker Space"):
+        space_target(api, "owner/assistance", {"name": "owner"}, reuse_existing=True)
+    result = space_target(api, "owner/assistance", {"name": "owner"}, reuse_existing=True, allow_public=True)
+    assert result.private is False and result.sdk == "docker"

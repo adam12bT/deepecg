@@ -136,8 +136,8 @@ def prepare(api, bucket, space, candidate_id, request_id, work):
             print("claimed=true", file=output)
         set_status(api, bucket, request_id, "running")
     info = api.space_info(space)
-    if not info.private:
-        raise ValueError("The production Space must be private.")
+    if info.sdk != "docker":
+        raise ValueError("The production Space must use the Docker SDK.")
     old_head = info.sha
     live = read_json(api.hf_hub_download(space, "registry/champion.json", repo_type="space", revision=old_head))
     baseline = read_json(release.ROOT / "registry/champion.json")["release_id"]
@@ -184,7 +184,8 @@ def prepare(api, bucket, space, candidate_id, request_id, work):
             shutil.copyfile(run / name, reports / name)
         else:
             (reports / name).unlink(missing_ok=True)
-    write_json(work / "deployment.json", {"oldHead": old_head, "release": candidate_id})
+    write_json(work / "deployment.json", {"oldHead": old_head, "release": candidate_id,
+                                          "spacePrivate": info.private})
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
         print("ready=true", file=output)
     print(f"Validation loss improved from {active_score:.5f} to {candidate_score:.5f}")
@@ -212,17 +213,19 @@ def publish(api, bucket, space, work, trial):
         "commit", "-m", f"Promote SleepOps model {candidate[:12]}")
     with TemporaryDirectory() as directory:
         revision = release.publish_space(api, space, release.stage(directory, build), profile, old_head,
-                                         reuse_existing=True, commit_message=f"Deploy SleepOps model {candidate[:12]}")
+                                         reuse_existing=True, allow_public=True,
+                                         commit_message=f"Deploy SleepOps model {candidate[:12]}")
     try:
-        release.wait_for_deployment(api, space, build, 720)
+        release.wait_for_deployment(api, space, build, 720, expected_private=plan["spacePrivate"])
         git("push", "origin", f"HEAD:{os.environ['GITHUB_REF']}")
     except Exception:
         with TemporaryDirectory() as directory:
             previous = api.snapshot_download(space, repo_type="space", revision=old_head, local_dir=directory)
             shutil.rmtree(Path(previous) / ".cache", ignore_errors=True)
             release.publish_space(api, space, Path(previous), profile, revision, reuse_existing=True,
+                                  allow_public=True,
                                   commit_message="Restore last verified SleepOps release")
-        release.wait_for_deployment(api, space, base_build, 720)
+        release.wait_for_deployment(api, space, base_build, 720, expected_private=plan["spacePrivate"])
         raise
 
 

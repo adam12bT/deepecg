@@ -12,7 +12,7 @@ python -m deploy.training_space.publish publish \
 
 CPU Basic requires a PRO account for a new Gradio Space. An eligible free account with an available ZeroGPU Space slot can add `--hardware zero-a10g`. The app trains on CPU on both configurations. [Hugging Face compute Space requirements](https://huggingface.co/docs/hub/spaces-overview#creating-a-new-space)
 
-To replace an existing authorized Docker Space on CPU Basic, use `reuse-docker` with its `--space` ID and the same `--bucket` flag. The deployment preserves the previous commit on a rollback branch and verifies privacy before upload. Add `--prediction-space adamnouassida5/assistance` to either deployment command to mount the prediction Space's registry and reports read-only for model comparison.
+To replace an existing authorized Docker Space on CPU Basic, use `reuse-docker` with its `--space` ID and the same `--bucket` flag. The deployment preserves the previous commit on a rollback branch and verifies that the Admin Space remains private. Add `--prediction-space adamnouassida5/assistance` to either deployment command to mount the prediction Space's registry and reports read-only for model comparison; the prediction Space can be public or private.
 
 The publisher mounts the `dvc-store` bucket subfolder read-only and `training-runs` read/write. Hugging Face supplies those volumes. Completed candidates persist across Space restarts. A run interrupted by a Space restart can be started again from the app.
 

@@ -303,7 +303,7 @@ def stage(output, build=None, *, github_source=False):
     return output
 
 
-def space_target(api, repo_id, profile, *, reuse_existing=False, make_private=False):
+def space_target(api, repo_id, profile, *, reuse_existing=False, make_private=False, allow_public=False):
     from huggingface_hub.errors import RepositoryNotFoundError
 
     try:
@@ -317,16 +317,16 @@ def space_target(api, repo_id, profile, *, reuse_existing=False, make_private=Fa
     files = api.list_repo_files(repo_id, repo_type="space", revision=existing.sha)
     if SPACE_MARKER not in files and set(files) - {".gitattributes"} and not reuse_existing:
         raise ValueError(f"Replacing the existing app in {repo_id} requires --reuse-existing.")
-    if existing.sdk != "docker" or (not existing.private and not make_private):
-        raise ValueError(f"The Space {repo_id} must be a private Docker Space before upload.")
+    if existing.sdk != "docker" or (not existing.private and not (make_private or allow_public)):
+        raise ValueError(f"The Space {repo_id} must be a private Docker Space unless public access is explicitly allowed.")
     return existing
 
 
 def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existing=False, make_private=False,
-                  commit_message="Deploy SleepOps with DVC dataset and model locks"):
+                  allow_public=False, commit_message="Deploy SleepOps with DVC dataset and model locks"):
     from huggingface_hub import CommitOperationAdd, CommitOperationDelete
 
-    options = {"reuse_existing": reuse_existing, "make_private": make_private}
+    options = {"reuse_existing": reuse_existing, "make_private": make_private, "allow_public": allow_public}
     existing = space_target(api, repo_id, profile, **options)
     current_head = existing.sha if existing is not None else None
     if expected_head != current_head:
@@ -344,8 +344,9 @@ def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existin
         print(f"Preserved previous Space revision on branch {backup}", flush=True)
     if make_private and existing is not None and not existing.private:
         api.update_repo_settings(repo_id, repo_type="space", private=True)
-    if not api.space_info(repo_id).private:
-        raise ValueError(f"The Space {repo_id} must be private before upload.")
+    expected_private = existing.private if existing is not None and not make_private else True
+    if api.space_info(repo_id).private != expected_private:
+        raise ValueError(f"The Space {repo_id} visibility changed during deployment preparation.")
 
     if reuse_existing:
         additions = {file.relative_to(staged).as_posix(): file for file in staged.rglob("*") if file.is_file()}
@@ -358,7 +359,7 @@ def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existin
     else:
         commit = api.upload_folder(repo_id=repo_id, repo_type="space", folder_path=staged,
                                    parent_commit=current_head, commit_message=commit_message)
-    print(f"Uploaded private Space https://huggingface.co/spaces/{repo_id}", flush=True)
+    print(f"Uploaded Space https://huggingface.co/spaces/{repo_id}", flush=True)
     print(f"Space commit {commit.oid}", flush=True)
     return commit.oid
 
@@ -369,7 +370,7 @@ def space_host(info):
     if (address.scheme != "https" or not address.hostname or not address.hostname.endswith(".hf.space")
             or address.username or address.password or address.port or address.path not in {"", "/"}
             or address.query or address.fragment):
-        raise ValueError("The private Space must provide a valid hf.space HTTPS address.")
+        raise ValueError("The Space must provide a valid hf.space HTTPS address.")
     return host.rstrip("/")
 
 
@@ -396,13 +397,13 @@ def deployed_build_is_healthy(client, host, build):
     return prediction.get("state") == "asleep" and isinstance(forecast, dict) and len(forecast.get("bins", [])) == 13
 
 
-def wait_for_deployment(api, repo_id, build, wait_seconds):
+def wait_for_deployment(api, repo_id, build, wait_seconds, expected_private=True):
     from huggingface_hub import get_token
     import httpx
 
     token = get_token()
     if not token:
-        raise ValueError("Authentication is required to verify the private Space.")
+        raise ValueError("Authentication is required to verify the Space.")
     deadline = time.monotonic() + wait_seconds
     previous = None
     with httpx.Client(headers={"Authorization": f"Bearer {token}"}, follow_redirects=False, timeout=10) as client:
@@ -415,8 +416,8 @@ def wait_for_deployment(api, repo_id, build, wait_seconds):
                 raise RuntimeError(f"Space reports {state}. Review its build or runtime logs.")
             if state == "RUNNING":
                 info = api.space_info(repo_id)
-                if not info.private:
-                    raise ValueError("The deployed Space must remain private.")
+                if info.private != expected_private:
+                    raise ValueError("The deployed Space visibility changed unexpectedly.")
                 if info.host or info.subdomain:
                     try:
                         if deployed_build_is_healthy(client, space_host(info), build):
@@ -469,6 +470,8 @@ def main():
             action.add_argument("--wait-seconds", type=int, default=600)
             action.add_argument("--reuse-existing", action="store_true")
             action.add_argument("--make-private", action="store_true")
+        if name == "deploy":
+            action.add_argument("--allow-public", action="store_true")
     args = parser.parse_args()
     try:
         if args.action == "stage":
@@ -497,11 +500,17 @@ def main():
                     raise ValueError("Specify the exact Space ID with --space when reusing a Space.")
                 if args.make_private and not args.reuse_existing:
                     raise ValueError("Use --make-private only with --reuse-existing.")
+                if args.allow_public and not args.reuse_existing:
+                    raise ValueError("Use --allow-public only with --reuse-existing.")
+                if args.allow_public and args.make_private:
+                    raise ValueError("Choose either --make-private or --allow-public, not both.")
                 repo_id = checked_repo_id(args.space or f"{owner}/{DEFAULT_SPACE}")
                 build = build_manifest()
-                options = {"reuse_existing": args.reuse_existing, "make_private": args.make_private}
+                options = {"reuse_existing": args.reuse_existing, "make_private": args.make_private,
+                           "allow_public": getattr(args, "allow_public", False)}
                 target = space_target(api, repo_id, profile, **options)
                 expected_head = target.sha if target is not None else None
+                expected_private = target.private if target is not None and not args.make_private else True
             if args.action == "deploy":
                 publish_assets(api, bucket_id, ASSETS)
             elif args.action in {"publish-data", "publish-model", "publish-stage-model"}:
@@ -517,7 +526,7 @@ def main():
                 with TemporaryDirectory(dir=work, prefix="hf-space-") as workspace:
                     publish_space(api, repo_id, stage(workspace, build=build), profile, expected_head, **options)
                 if args.wait_seconds:
-                    wait_for_deployment(api, repo_id, build, args.wait_seconds)
+                    wait_for_deployment(api, repo_id, build, args.wait_seconds, expected_private=expected_private)
     except (ValueError, OSError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(2, f"SleepOps cloud error: {error}\n")
 
