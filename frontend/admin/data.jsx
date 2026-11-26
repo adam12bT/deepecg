@@ -7,6 +7,7 @@ import './data.css'
 const number = new Intl.NumberFormat()
 const count = (value) => number.format(value)
 const sum = (values) => values.reduce((total, value) => total + value, 0)
+const percentage = (value, total) => `${(total ? 100 * value / total : 0).toFixed(1)}%`
 const titles = { train: 'Training', validation: 'Validation', test: 'Test' }
 const clock = (seconds) => [Math.floor(seconds / 3600), Math.floor((seconds / 60) % 60), seconds % 60]
   .map((value) => String(value).padStart(2, '0')).join(':')
@@ -61,29 +62,33 @@ function Distributions({ version, splits, labels, stageNames }) {
   const [split, setSplit] = useState('train')
   const stats = version.splits[split]
   const [wake, sleep] = stats.state_epoch_counts
+  const stateTotal = wake + sleep
+  const forecastTotal = sum(stats.forecast_class_counts)
+  const stageTotal = stats.stage_counts ? sum(stats.stage_counts) : 0
   const max = Math.max(...stats.forecast_class_counts, 1)
   return <section className="panel data-distributions">
     <PanelTitle icon={BarChart3} title="Label distributions" />
     <div className="segment split-filter" aria-label="Label distribution split">{splits.map((key) => <button key={key}
       type="button" aria-pressed={split === key} onClick={() => setSplit(key)}>{titles[key]}</button>)}</div>
     <div className="distribution-subtitle"><h3>Sleep–wake epochs</h3><span>{count(wake + sleep)} total</span></div>
-    <div className="label-bar" aria-hidden="true"><span className="wake" style={{ width: `${100 * wake / (wake + sleep)}%` }} />
+    <div className="label-bar" aria-hidden="true"><span className="wake" style={{ width: `${100 * wake / stateTotal}%` }} />
       <span className="sleep" style={{ width: `${100 * sleep / (wake + sleep)}%` }} /></div>
-    <div className="data-legend"><span><i className="wake" />Wake {count(wake)}</span><span><i className="sleep" />Sleep {count(sleep)}</span></div>
+    <div className="data-legend"><span><i className="wake" />Wake {count(wake)} ({percentage(wake, stateTotal)})</span>
+      <span><i className="sleep" />Sleep {count(sleep)} ({percentage(sleep, stateTotal)})</span></div>
     {stats.stage_counts && <><div className="distribution-subtitle"><h3>Sleep stages</h3>
-      <span>{count(sum(stats.stage_counts))} scored epochs</span></div>
+      <span>{count(stageTotal)} scored epochs</span></div>
       <div className="data-legend stage-counts">{stageNames.map((stage, index) =>
-        <span key={stage}>{stage} {count(stats.stage_counts[index])}</span>)}</div></>}
-    <div className="distribution-subtitle"><h3>Time to sustained awakening</h3><span>{count(sum(stats.forecast_class_counts))} windows</span></div>
+        <span key={stage}>{stage} {count(stats.stage_counts[index])} ({percentage(stats.stage_counts[index], stageTotal)})</span>)}</div></>}
+    <div className="distribution-subtitle"><h3>Time to sustained awakening</h3><span>{count(forecastTotal)} windows</span></div>
     <div className="table-scroll"><div className="forecast-chart" aria-label="Forecast class counts">
       {stats.forecast_class_counts.map((value, index) => <div className="forecast-column" key={labels[index]}
-        title={`${labels[index]} · ${count(value)} windows`}>
-        <span className="forecast-count">{count(value)}</span>
+        title={`${labels[index]} · ${count(value)} windows (${percentage(value, forecastTotal)})`}>
+        <span className="forecast-count">{percentage(value, forecastTotal)}</span>
         <span className={`forecast-stick ${index === labels.length - 1 ? 'capped' : ''}`} style={{ height: `${6 + 82 * value / max}px` }} />
         <span className="forecast-tick">{index === labels.length - 1 ? 'None' : labels[index].replace(' min', '')}</span>
       </div>)}
     </div></div>
-    <p className="data-caption">Each bin spans five minutes. None means no qualifying awakening within 60 minutes.</p>
+    <p className="data-caption">Bars show each class as a percentage of the selected split; hover for raw counts. Each bin spans five minutes. None means no qualifying awakening within 60 minutes. These are label distributions; EEG feature normalization is fit on training data only.</p>
   </section>
 }
 
