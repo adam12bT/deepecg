@@ -35,6 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends nginx \
 COPY --chown=spaceuser --from=frontend-build /web/dist /app/frontend/dist
 COPY --chown=spaceuser artifacts/demo_windows.npz ./artifacts/
 COPY --chown=spaceuser registry ./registry
+COPY --chown=spaceuser configs/stage_aware_model.json ./configs/
+COPY --chown=spaceuser stage_aware_model.pt ./stage_aware_model.pt
 COPY --chown=spaceuser deploy/huggingface/ ./deploy/huggingface/
 ENV HOME=/home/spaceuser
 USER spaceuser

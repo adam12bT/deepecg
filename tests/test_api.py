@@ -33,6 +33,12 @@ def test_health_predictions_schema_and_telemetry(monkeypatch):
         assert deployed["archive_sha256"] == details["archive_sha256"]
         assert deployed["build_id"] == "test-build-marker"
         assert len(deployed["checkpoint_sha256"]) == 64
+        if (ROOT / "stage_aware_model.pt").is_file():
+            stage_manifest = read_json(ROOT / "configs/stage_aware_model.json")
+            assert deployed["stage_preview_model_id"] == stage_manifest["run_id"]
+            assert deployed["stage_preview_sha256"] == stage_manifest["checkpoint_sha256"]
+        else:
+            assert deployed["stage_preview_model_id"] is None
         schema = client.get("/v1/schema").json()
         assert schema["shape"] == [10, 11] and schema["feature_names"] == list(FEATURE_NAMES)
 

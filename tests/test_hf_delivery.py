@@ -33,22 +33,29 @@ def test_new_build_manifest_binds_source_revision_to_active_model(monkeypatch):
     assert first["source_revision"] == "a" * 40
     assert first["archive_sha256"] == second["archive_sha256"]
     assert first["checkpoint_sha256"] == second["checkpoint_sha256"]
+    assert first["stage_preview_model_id"] == "0953df84193d4c658f17d9f17061629f"
+    assert first["stage_preview_sha256"] == "9513024d459485207a5159dd1cadc957339123c39bc9a62ed69a21df52235b43"
     assert first["release_id"] == second["release_id"] and first["build_id"] != second["build_id"]
 
 
 def test_release_check_rejects_stale_app_or_mismatched_weights():
     expected = {"build_id": "current", "release_id": "model", "archive_sha256": "archive",
-                "checkpoint_sha256": "checkpoint"}
+                "checkpoint_sha256": "checkpoint", "stage_preview_model_id": "stage-model",
+                "stage_preview_sha256": "stage-checkpoint"}
     host = "https://owner-sleepops.hf.space"
     prediction = {"release_id": expected["release_id"], "state": "awake", "asleep_probabilities": [0.1] * 10,
                   "forecast": None}
-    for field in ("build_id", "release_id", "archive_sha256", "checkpoint_sha256"):
+    for field in ("build_id", "release_id", "archive_sha256", "checkpoint_sha256",
+                  "stage_preview_model_id", "stage_preview_sha256"):
         stale = StubClient({**expected, field: "stale"}, prediction)
         assert not deployed_build_is_healthy(stale, host, expected)
         assert stale.predictions == 0
     current = StubClient(expected, prediction)
-    assert deployed_build_is_healthy(current, host, expected)
+    assert not deployed_build_is_healthy(current, host, expected)
     assert current.predictions == 1
+    prediction.update(stage_preview_model_id="stage-model", stage_preview_probabilities=[[0.2] * 5 for _ in range(10)])
+    assert deployed_build_is_healthy(current, host, expected)
+    assert current.predictions == 2
     prediction.update(state="asleep", forecast={"bins": []})
     assert not deployed_build_is_healthy(current, host, expected)
     prediction["forecast"]["bins"] = [{}] * 13
@@ -86,3 +93,7 @@ def test_prediction_space_bundle_contains_the_locked_stage_preview():
         bundled = bundle / STAGE_MODEL
         assert bundled.is_file()
         assert sha256(bundled) == sha256(source)
+        assert f"!/{STAGE_MODEL}" in (bundle / ".gitignore").read_text(encoding="utf-8").splitlines()
+        dockerfile = (bundle / "Dockerfile").read_text(encoding="utf-8")
+        assert f"COPY --chown=spaceuser configs/stage_aware_model.json ./configs/" in dockerfile
+        assert f"COPY --chown=spaceuser {STAGE_MODEL} ./{STAGE_MODEL}" in dockerfile

@@ -126,7 +126,11 @@ def create_app(registry=None, *, demo_windows=None, stage_checkpoint=None, stage
         app.state.details = {"release_id": path.name, "archive_sha256": metadata["archive_sha256"],
                              "checkpoint_sha256": metadata["file_sha256"][CHECKPOINT],
                              "selected_epoch": checkpoint["best_epoch"], "state_threshold": checkpoint["state_threshold"],
-                             "stage_names": list(STAGE_NAMES) if isinstance(model, SleepStageForecastPipeline) else []}
+                             "stage_names": list(STAGE_NAMES) if isinstance(model, SleepStageForecastPipeline) else [],
+                             "stage_preview_model_id": (app.state.stage_preview[3]
+                                                         if app.state.stage_preview is not None else None),
+                             "stage_preview_sha256": (sha256(stage_path)
+                                                      if app.state.stage_preview is not None else None)}
         if build_id := os.getenv("SLEEPOPS_BUILD_ID"):
             app.state.details["build_id"] = build_id
         yield

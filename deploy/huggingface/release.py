@@ -124,13 +124,20 @@ def asset_source(asset):
 
 def build_manifest():
     pinned = json.loads((ROOT / MODEL_LOCK).read_text(encoding="utf-8"))
+    stage = json.loads((ROOT / STAGE_MODEL_LOCK).read_text(encoding="utf-8"))
     active = json.loads((ROOT / "registry/champion.json").read_text(encoding="utf-8"))["release_id"]
     dataset = json.loads((ROOT / "configs/dataset.json").read_text(encoding="utf-8"))
     if pinned["release_id"] != active or pinned["archive_sha256"] != dataset["archive_sha256"]:
         raise ValueError("Run pin-model to match the DVC model lock to the active release and dataset.")
+    if (stage.get("file") != STAGE_MODEL
+            or not re.fullmatch(r"[a-f0-9]{64}", stage.get("archive_sha256", ""))
+            or not re.fullmatch(r"[a-f0-9]{64}", stage.get("checkpoint_sha256", ""))
+            or not re.fullmatch(r"[a-f0-9]{32}", stage.get("run_id", ""))):
+        raise ValueError("The experimental stage-preview lock must match this dataset and include a checkpoint.")
     verify_asset(MODEL, release_checkpoint(active))
     return {"build_id": uuid4().hex, "source_revision": os.getenv("GITHUB_SHA"), "release_id": active,
-            "archive_sha256": pinned["archive_sha256"], "checkpoint_sha256": pinned["checkpoint_sha256"]}
+            "archive_sha256": pinned["archive_sha256"], "checkpoint_sha256": pinned["checkpoint_sha256"],
+            "stage_preview_model_id": stage["run_id"], "stage_preview_sha256": stage["checkpoint_sha256"]}
 
 
 def run_dvc(repo, *arguments):
@@ -299,6 +306,15 @@ def stage(output, build=None, *, github_source=False):
             target.write_text(json.dumps(notebook, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         else:
             shutil.copyfile(ROOT / relative, target)
+    if (output / STAGE_MODEL).is_file():
+        # The Hugging Face Hub applies .gitignore rules to newly-added files,
+        # even for explicit commit operations. Keep weights ignored by default
+        # while allowing this locked, deliberately bundled preview checkpoint.
+        ignore_path = output / ".gitignore"
+        ignore_text = ignore_path.read_text(encoding="utf-8")
+        exception = f"!/{STAGE_MODEL}"
+        if exception not in ignore_text.splitlines():
+            ignore_path.write_text(ignore_text.rstrip() + "\n" + exception + "\n", encoding="utf-8")
     if build is not None:
         (output / "deploy/huggingface/build.json").write_text(json.dumps(build, indent=2) + "\n", encoding="utf-8")
     print(f"Staged {sum(path.is_file() for path in output.rglob('*'))} project files at {output}", flush=True)
@@ -353,6 +369,23 @@ def publish_space(api, repo_id, staged, profile, expected_head, *, reuse_existin
     if reuse_existing:
         additions = {file.relative_to(staged).as_posix(): file for file in staged.rglob("*") if file.is_file()}
         old_files = set(api.list_repo_files(repo_id, repo_type="space", revision=current_head))
+        if STAGE_MODEL in additions and ".gitignore" in old_files:
+            from huggingface_hub import hf_hub_download
+
+            current_ignore = Path(hf_hub_download(repo_id=repo_id, filename=".gitignore", repo_type="space",
+                                                  revision=current_head)).read_text(encoding="utf-8")
+            exception = f"!/{STAGE_MODEL}"
+            if exception not in current_ignore.splitlines():
+                # Hugging Face applies the current ignore file before adding files.
+                # Commit the exception first so the subsequent checkpoint upload is accepted.
+                ignore_commit = api.create_commit(
+                    repo_id,
+                    [CommitOperationAdd(path_in_repo=".gitignore", path_or_fileobj=additions[".gitignore"])],
+                    repo_type="space", parent_commit=current_head,
+                    commit_message="Allow the locked experimental stage-preview checkpoint",
+                )
+                current_head = ignore_commit.oid
+                print("Enabled the locked stage-preview checkpoint in the Space allowlist", flush=True)
         operations = [CommitOperationAdd(path_in_repo=name, path_or_fileobj=file) for name, file in additions.items()]
         operations.extend(CommitOperationDelete(path_in_repo=name, is_folder=False)
                           for name in sorted(old_files - additions.keys() - {".gitattributes"}))
@@ -381,7 +414,8 @@ def deployed_build_is_healthy(client, host, build):
     if model.status_code != 200:
         return False
     details = model.json()
-    tracked = ("build_id", "release_id", "archive_sha256", "checkpoint_sha256")
+    tracked = ("build_id", "release_id", "archive_sha256", "checkpoint_sha256",
+               "stage_preview_model_id", "stage_preview_sha256")
     if any(details.get(key) != build[key] for key in tracked):
         return False
     frontend = client.get(host + "/")
@@ -392,6 +426,10 @@ def deployed_build_is_healthy(client, host, build):
         return False
     prediction = response.json()
     if prediction.get("release_id") != build["release_id"] or len(prediction.get("asleep_probabilities", [])) != 10:
+        return False
+    stage_probabilities = prediction.get("stage_preview_probabilities", [])
+    if (prediction.get("stage_preview_model_id") != build["stage_preview_model_id"]
+            or len(stage_probabilities) != 10 or any(len(row) != 5 for row in stage_probabilities)):
         return False
     forecast = prediction.get("forecast")
     if prediction.get("state") == "awake":
