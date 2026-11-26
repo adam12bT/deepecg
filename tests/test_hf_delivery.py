@@ -1,8 +1,11 @@
+from tempfile import TemporaryDirectory
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from deploy.huggingface.release import build_manifest, deployed_build_is_healthy, space_host, space_target
+from deploy.huggingface.release import (STAGE_MODEL, build_manifest, deployed_build_is_healthy, sha256,
+                                        space_host, space_target, stage)
 
 
 class StubClient:
@@ -72,3 +75,14 @@ def test_public_production_space_requires_explicit_allowlist():
         space_target(api, "owner/assistance", {"name": "owner"}, reuse_existing=True)
     result = space_target(api, "owner/assistance", {"name": "owner"}, reuse_existing=True, allow_public=True)
     assert result.private is False and result.sdk == "docker"
+
+
+@pytest.mark.serving_assets
+def test_prediction_space_bundle_contains_the_locked_stage_preview():
+    source = Path(STAGE_MODEL)
+    assert source.is_file(), "Restore the DVC stage-preview checkpoint before packaging a production release."
+    with TemporaryDirectory() as temporary:
+        bundle = stage(Path(temporary) / "space")
+        bundled = bundle / STAGE_MODEL
+        assert bundled.is_file()
+        assert sha256(bundled) == sha256(source)

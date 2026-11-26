@@ -515,6 +515,8 @@ def main():
                 expected_private = target.private if target is not None and not args.make_private else True
             if args.action == "deploy":
                 publish_assets(api, bucket_id, ASSETS)
+                pull_assets(api, bucket_id, (STAGE_MODEL,))
+                verify_asset(STAGE_MODEL, ROOT / STAGE_MODEL)
             elif args.action in {"publish-data", "publish-model", "publish-stage-model"}:
                 asset = {"publish-data": ARCHIVE, "publish-model": MODEL,
                          "publish-stage-model": STAGE_MODEL}[args.action]
@@ -526,7 +528,12 @@ def main():
                 work = ROOT / ".work"
                 work.mkdir(exist_ok=True)
                 with TemporaryDirectory(dir=work, prefix="hf-space-") as workspace:
-                    publish_space(api, repo_id, stage(workspace, build=build), profile, expected_head, **options)
+                    revision = publish_space(api, repo_id, stage(workspace, build=build), profile, expected_head,
+                                             **options)
+                if args.action == "deploy":
+                    remote = Path(api.hf_hub_download(repo_id, STAGE_MODEL, repo_type="space", revision=revision))
+                    if sha256(remote) != sha256(ROOT / STAGE_MODEL):
+                        raise RuntimeError("The deployed stage-preview checkpoint failed its checksum check.")
                 if args.wait_seconds:
                     wait_for_deployment(api, repo_id, build, args.wait_seconds, expected_private=expected_private)
     except (ValueError, OSError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
