@@ -18,7 +18,7 @@ The publisher mounts the `dvc-store` bucket subfolder read-only and `training-ru
 
 ## Explore and extend the dataset
 
-Open **Data** to review the split sizes, state and forecast distributions, and 30-second EEG feature values for a recording. Select a base version and upload a feature NPZ exported by `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb`. Use stable subject and recording IDs. Existing recordings are skipped, and new recordings for current validation or test subjects are rejected. The uploaded additions go to training.
+Open **Data** to review split sizes, label distributions, and 30-second EEG feature values. Download the selected archive, prepare a complete SleepOps feature NPZ, and upload it as a named dataset version. The app validates the archive and split integrity, then stores its DVC pointer and object in the private bucket. Raw EDF files are not accepted by the browser; extract the 11 EEG features and labels first. Use stable subject and recording IDs. Existing recordings are skipped, and new recordings for current validation or test subjects are rejected. After saving, click **Train with this version** or select it in the Training view.
 
 Each saved version writes its dataset lock and `.dvc` pointer to `dataset-versions/releases/<archive-sha256>/` in the private bucket. The corresponding DVC cache object lives under `dataset-versions/files/md5/`. The Training view lets you choose the exact dataset version for the next run. The stage-aware pipeline checkpoint and its manifest are tracked separately in `stage_aware_model.pt.dvc` and `configs/stage_aware_model.json`; it remains a candidate until validation gates pass.
 

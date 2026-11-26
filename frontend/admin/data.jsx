@@ -193,22 +193,31 @@ function UploadData({ version, maxUploadBytes, onSaved }) {
 
   return <section className="panel upload-data">
     <PanelTitle icon={FileUp} title="Add training data" />
-    <p className="data-caption">Upload a prepared EEG feature NPZ. You can add five-class stage labels to the existing recordings or add new training recordings. Existing validation and test subjects are protected.</p>
+    <ol className="data-onboarding">
+      <li><strong>Download</strong><span>Save this version's archive as your starting point.</span></li>
+      <li><strong>Prepare</strong><span>Add new recordings and labels in the project preprocessing workflow.</span></li>
+      <li><strong>Upload and train</strong><span>SleepOps validates it, saves a DVC version, then trains a candidate from that version.</span></li>
+    </ol>
+    <p className="data-caption">Upload a complete prepared <code>.npz</code> feature archive (not raw EDF files). It must use the SleepOps 11-feature schema and include recording IDs, subject IDs, timestamps, labels, and split assignments. New subjects are added to training; existing validation and test subjects stay protected.</p>
     <form onSubmit={upload}>
-      <label className="field">New version name<input id="dataset-name" value={name} maxLength={80}
+      <label className="field">Name this dataset version<input id="dataset-name" value={name} maxLength={80}
         placeholder="e.g. Sleep-EDF with new sessions" required onChange={(event) => setName(event.target.value)} disabled={busy} /></label>
-      <label className="field">Prepared NPZ archive<input key={saved?.id || 'file'} id="dataset-upload" type="file" accept=".npz"
+      <label className="field">Prepared feature archive<input key={saved?.id || 'file'} id="dataset-upload" type="file" accept=".npz,application/zip"
         required onChange={(event) => setFile(event.target.files[0] || null)} disabled={busy} /></label>
       <button className="button primary" disabled={busy || !file || !name.trim()}><FileUp size={16} />
         {busy ? 'Validating and saving…' : 'Validate and create version'}</button>
     </form>
-    <p className="data-caption">Parent {version.name} · {maxUploadBytes / 1024 ** 2} MiB upload limit</p>
+    <p className="data-caption">Based on {version.name} · maximum upload {maxUploadBytes / 1024 ** 2} MiB</p>
     <a className="data-link" href="https://github.com/adam12bT/deepecg/blob/sleepops/Sleep_EDF_Wake_Up_Prediction_Colab.ipynb"
       target="_blank" rel="noreferrer">Open the EEG preprocessing notebook</a>
     <a className="data-link" href="https://github.com/adam12bT/deepecg/blob/sleepops/Sleep_Stage_Awakening_Training_Colab.ipynb"
       target="_blank" rel="noreferrer">Open the two-stage Colab training notebook</a>
     {error && <ErrorNote>{error}</ErrorNote>}
-    {saved && <p className="notice success" role="status"><ShieldCheck size={16} />Saved {saved.name}. Added {count(saved.added.recordings)} recordings and {count(saved.added.stageLabels || 0)} stage labels.</p>}
+    {saved && <div className="notice success dataset-saved" role="status"><ShieldCheck size={16} />
+      <div><strong>{saved.name} is saved as a private DVC dataset version.</strong>
+        <span>Added {count(saved.added.recordings)} recordings and {count(saved.added.stageLabels || 0)} stage labels. Held-out subject splits were preserved.</span>
+      </div><button type="button" className="button primary" onClick={() => onTrain(saved.id)}><Play size={15} />Train with this version</button>
+    </div>}
   </section>
 }
 
@@ -236,8 +245,10 @@ export function DatasetPage({ resource, selected, onSelect, onSaved, onTrain, on
   return <>
     <section className="panel version-picker">
       <PanelTitle icon={Database} title="Dataset version">
-        <div className="data-actions"><a className="button secondary" href={version.url} target="_blank" rel="noreferrer">Open DVC artifacts</a>
-          <button type="button" className="button primary" onClick={() => onTrain(version.id)}><Play size={16} /> Use for training</button></div>
+        <div className="data-actions"><a className="button secondary" href={`/api/admin/datasets/${encodeURIComponent(version.id)}/archive`}
+          download="sleepops_dataset.npz">Download selected archive</a>
+          <a className="button secondary" href={version.url} target="_blank" rel="noreferrer">Open DVC artifacts</a>
+          <button type="button" className="button primary" onClick={() => onTrain(version.id)}><Play size={16} /> Train on this version</button></div>
       </PanelTitle>
       <Select id="dataset-version" title="Viewing" value={version.id}
         options={versions.map((entry) => [entry.id, entry.name])} onChange={onSelect} />
@@ -245,7 +256,7 @@ export function DatasetPage({ resource, selected, onSelect, onSaved, onTrain, on
     <DataSummary version={version} splits={splits} stageNames={stageNames} />
     <div className="data-grid">
       <Distributions version={version} splits={splits} labels={forecastLabels} stageNames={stageNames} />
-      <UploadData version={version} maxUploadBytes={maxUploadBytes} onSaved={onSaved} />
+      <UploadData version={version} maxUploadBytes={maxUploadBytes} onSaved={onSaved} onTrain={onTrain} />
     </div>
     <SplitOverview version={version} splits={splits} />
     <Explorer key={version.id} version={version} splits={splits} features={features} previewEpochs={previewEpochs}

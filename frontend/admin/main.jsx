@@ -508,7 +508,7 @@ function App() {
               : { models: 'Inspect deployed and candidate checkpoints.', behavior: 'Replay held-out windows through a saved model and review its stage and awakening probabilities.', data: 'Explore EEG recordings and manage versioned training data.',
               notebook: 'Write Python cells and work with your EEG data.',
               compare: 'Evaluate two model versions side by side.',
-              training: 'Train on the DVC-pinned Sleep-EDF feature archive.' }[page]}</p></div>
+              training: 'Choose a versioned EEG dataset and train a new review candidate.' }[page]}</p></div>
         {page !== 'training' && page !== 'notebook' && <button type="button" className="button primary" onClick={() => navigate('training')}>
           <Play size={16} /> Training controls</button>}</div>
 
@@ -516,7 +516,7 @@ function App() {
         {!catalog && <p className="notice" role="status">Loading model registry…</p>}
         {workerError && <ErrorNote>{workerError}</ErrorNote>}
         {page === 'data' && <DatasetPage resource={datasets} selected={viewDataset} onSelect={setViewDataset}
-          onSaved={(version) => { setViewDataset(version.id); setDataRevision((current) => current + 1) }}
+          onSaved={(version) => { setViewDataset(version.id); setTrainingDataset(version.id); setDataRevision((current) => current + 1) }}
           onNotebook={(sample) => { setNotebookDataset(sample.version); setNotebookSample(sample); navigate('notebook') }}
           onTrain={(id) => { setTrainingDataset(id); navigate('training') }} />}
         {page === 'behavior' && <ModelBehavior models={models} revision={revision} />}
