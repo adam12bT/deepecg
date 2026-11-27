@@ -55,6 +55,8 @@ The archive lock records its SHA-256, feature order, split membership fingerprin
 
 To create schema v2 without recomputing EEG features, run `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb` and upload the existing schema-v1 archive when prompted. It downloads expert hypnograms, checks them against the archived binary labels, adds five-class stage labels, and retains the original subject splits and EEG arrays. The current stage-labelled archive is already registered in **Admin > Data**; choose that version for future stage-aware training. `Sleep_Stage_Awakening_Training_Colab.ipynb` is the standalone Colab training and evaluation route.
 
+In **Admin > Data**, add a prepared SleepOps `.npz` archive either from a local file or a direct public HTTPS download link. Imports are size-limited, checked against the recording, feature, label, timestamp, and split contract, and saved as private DVC-backed dataset versions. Raw EDF/EDF+ recordings must first go through the preprocessing notebook to produce the prepared feature archive.
+
 ```sh
 mlflow ui --backend-store-uri sqlite:///runtime/mlflow.db --host 127.0.0.1 --port 5000
 ```

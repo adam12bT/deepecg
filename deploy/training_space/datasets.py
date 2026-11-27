@@ -2,14 +2,18 @@
 
 from functools import lru_cache
 import hashlib
+import ipaddress
 import math
 from pathlib import Path
 import re
 import shutil
+import socket
 from tempfile import TemporaryDirectory
 from threading import Lock
+from urllib.parse import urljoin, urlsplit
 from zipfile import BadZipFile, ZipFile
 
+import httpx
 import numpy as np
 from numpy.lib import format as npy
 
@@ -22,9 +26,84 @@ from sleepops.files import read_json, sha256, utc_now, write_json
 MAX_UPLOAD = 24 * 1024 * 1024
 MAX_ARCHIVE = 48 * 1024 * 1024
 MAX_EXPANDED = 192 * 1024 * 1024
+MAX_LINK_REDIRECTS = 5
+LINK_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 PREVIEW_EPOCHS = 120
 SHA256 = re.compile(r"[0-9a-f]{64}")
 MD5 = re.compile(r"[0-9a-f]{32}")
+
+
+class DatasetTooLarge(ValueError):
+    """An uploaded or linked dataset exceeds the accepted compressed-size limit."""
+
+
+def validate_public_archive_url(value):
+    """Accept only HTTPS links whose resolved addresses are public Internet hosts."""
+    if not isinstance(value, str) or not value or len(value) > 2048:
+        raise ValueError("Enter a direct public HTTPS link to a prepared EEG archive.")
+    try:
+        parsed = urlsplit(value.strip())
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        raise ValueError("Enter a valid public HTTPS archive link.") from None
+    if (parsed.scheme.lower() != "https" or not host or parsed.username or parsed.password
+            or parsed.fragment or port not in (None, 443)):
+        raise ValueError("Use a public HTTPS archive link without credentials or a custom port.")
+    host = host.rstrip(".")
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("Use a public hostname for the archive link, not an IP address.")
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+        if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+            raise ValueError("The archive link must resolve only to public Internet addresses.")
+    except (OSError, ValueError):
+        raise ValueError("The archive link host could not be verified as a public Internet address.") from None
+    return value.strip()
+
+
+def download_public_archive(url, destination):
+    """Stream a bounded archive download, validating each HTTPS redirect target."""
+    current = validate_public_archive_url(url)
+    try:
+        with httpx.Client(follow_redirects=False, timeout=LINK_TIMEOUT, trust_env=False) as client:
+            for redirect in range(MAX_LINK_REDIRECTS + 1):
+                with client.stream("GET", current, headers={"Accept": "application/octet-stream, application/zip"}) as response:
+                    if response.is_redirect:
+                        location = response.headers.get("location")
+                        if not location or redirect == MAX_LINK_REDIRECTS:
+                            raise ValueError("The archive link redirected too many times.")
+                        current = validate_public_archive_url(urljoin(current, location))
+                        continue
+                    if response.status_code != 200:
+                        raise ValueError(f"The archive link returned HTTP {response.status_code}.")
+                    content_length = response.headers.get("content-length")
+                    if content_length is not None:
+                        try:
+                            declared_size = int(content_length)
+                        except ValueError:
+                            raise ValueError("The archive link returned an invalid content length.") from None
+                        if declared_size < 0:
+                            raise ValueError("The archive link returned an invalid content length.")
+                        if declared_size > MAX_UPLOAD:
+                            raise DatasetTooLarge("The linked archive exceeds 24 MiB.")
+                    total = 0
+                    with Path(destination).open("wb") as target:
+                        for chunk in response.iter_bytes(1024 * 1024):
+                            total += len(chunk)
+                            if total > MAX_UPLOAD:
+                                raise DatasetTooLarge("The linked archive exceeds 24 MiB.")
+                            target.write(chunk)
+                    return total
+    except httpx.TimeoutException:
+        raise ValueError("The archive download timed out. Try a faster direct link.") from None
+    except httpx.HTTPError:
+        raise ValueError("The archive could not be downloaded from that link.") from None
+    raise ValueError("The archive link could not be downloaded.")
 
 
 def load_upload(path, expected):
@@ -261,6 +340,17 @@ class DatasetStore:
             for file in ("dataset.json", pointer, "version.json"):
                 shutil.copyfile(work / file, release / file)
             return self.summary(key)
+
+    def add_url(self, parent, name, url):
+        require(self.versions.is_dir(), "The private dataset storage volume is unavailable.")
+        name = name.strip()
+        require(bool(name) and len(name) <= 80 and name.isprintable(), "Enter a dataset name of at most 80 characters.")
+        self.location(parent)
+        with TemporaryDirectory(prefix="sleepops-dataset-link-") as tmp:
+            linked = Path(tmp) / "linked-archive.npz"
+            download_public_archive(url, linked)
+            with linked.open("rb") as source:
+                return self.add(parent, name, source)
 
 
 def chart_metadata():

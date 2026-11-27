@@ -26,6 +26,9 @@
 .forecast-tick { color: #aab8cd; font-size: .77rem; white-space: nowrap; }
 .data-distributions > .data-caption { margin-top: 10px; }
 .upload-data form { display: grid; gap: 13px; margin: 13px 0 11px; }
+.source-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.source-picker .button { width: fit-content; }
+.source-hint { display: block; margin-top: 5px; color: var(--muted); font-size: .82rem; line-height: 1.4; }
 .data-onboarding { display: grid; gap: 8px; margin: 14px 0; padding: 0; list-style: none; counter-reset: data-step; }
 .data-onboarding li { display: grid; grid-template-columns: 1fr; gap: 2px; border-left: 2px solid #508dc5; padding: 2px 0 2px 10px; counter-increment: data-step; }
 .data-onboarding li strong::before { content: counter(data-step) ". "; color: #94caff; }

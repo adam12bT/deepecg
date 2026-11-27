@@ -20,7 +20,7 @@ The checked-in archive is schema v1 and has binary wake/sleep labels only. It ca
 
 1. Open `Sleep_EDF_Wake_Up_Prediction_Colab.ipynb`. Its default path asks for the existing schema-v1 archive, downloads the expert hypnograms, and adds five-class labels. It preserves the existing EEG features, forecast targets, recording metadata, and subject splits. Download the schema-v2 archive from Colab.
 2. For Colab training, open `Sleep_Stage_Awakening_Training_Colab.ipynb`, upload the new archive, and run all cells. Choose a GPU runtime for faster training; CPU is supported. The notebook streams losses and downloads the checkpoint with training, validation, test, and probability-plot reports.
-3. For hosted training, open **Data**, upload the schema-v2 archive as a new version of the original dataset, then use **Train a model** and select the version marked **five sleep stages**. The resulting checkpoint is a candidate until it passes validation gates and is deployed.
+3. For hosted training, open **Data** and add the schema-v2 archive as a new version of the original dataset. Choose a local `.npz` file or import it using a direct public HTTPS download link. Then use **Train a model** and select the version marked **five sleep stages**. The resulting checkpoint is a candidate until it passes validation gates and is deployed.
 
 Set `UPGRADE_EXISTING_ARCHIVE = False` only when rebuilding EEG features from raw EDF recordings. That route downloads the public PSG files as well as hypnograms.
 

@@ -164,17 +164,19 @@ function Explorer({ version, splits, features, previewEpochs, onNotebook }) {
 
 function UploadData({ version, maxUploadBytes, onSaved }) {
   const [name, setName] = useState('')
+  const [sourceMode, setSourceMode] = useState('file')
   const [file, setFile] = useState(null)
+  const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(null)
 
   async function upload(event) {
     event.preventDefault()
-    if (!file || busy) return
+    if (busy || (sourceMode === 'file' && !file) || (sourceMode === 'link' && !url.trim())) return
     setError('')
     setSaved(null)
-    if (!file.name.toLowerCase().endsWith('.npz') || file.size > maxUploadBytes) {
+    if (sourceMode === 'file' && (!file.name.toLowerCase().endsWith('.npz') || file.size > maxUploadBytes)) {
       setError(`Choose a prepared NPZ archive up to ${maxUploadBytes / 1024 ** 2} MiB.`)
       return
     }
@@ -183,11 +185,13 @@ function UploadData({ version, maxUploadBytes, onSaved }) {
       const body = new FormData()
       body.set('parent', version.id)
       body.set('name', name)
-      body.set('file', file)
+      if (sourceMode === 'file') body.set('file', file)
+      else body.set('url', url.trim())
       const result = await request('/datasets', { method: 'POST', body })
       setSaved(result)
       setName('')
       setFile(null)
+      setUrl('')
       onSaved(result)
     } catch (failure) {
       setError(failure.message)
@@ -201,18 +205,31 @@ function UploadData({ version, maxUploadBytes, onSaved }) {
     <ol className="data-onboarding">
       <li><strong>Download</strong><span>Save this version's archive as your starting point.</span></li>
       <li><strong>Prepare</strong><span>Add new recordings and labels in the project preprocessing workflow.</span></li>
-      <li><strong>Upload and train</strong><span>SleepOps validates it, saves a DVC version, then trains a candidate from that version.</span></li>
+      <li><strong>Import and train</strong><span>Upload a file or import it from a link. SleepOps validates it, saves a DVC version, then trains a candidate.</span></li>
     </ol>
-    <p className="data-caption">Upload a complete prepared <code>.npz</code> feature archive (not raw EDF files). It must use the SleepOps 11-feature schema and include recording IDs, subject IDs, timestamps, labels, and split assignments. New subjects are added to training; existing validation and test subjects stay protected.</p>
+    <p className="data-caption">Add a complete prepared <code>.npz</code> feature archive using a file or a direct public HTTPS download link (for example, a Hugging Face <code>resolve</code> link). Raw EDF recordings need preprocessing into the SleepOps 11-feature schema first. New subjects are added to training; existing validation and test subjects stay protected.</p>
     <form onSubmit={upload}>
       <label className="field">Name this dataset version<input id="dataset-name" value={name} maxLength={80}
         placeholder="e.g. Sleep-EDF with new sessions" required onChange={(event) => setName(event.target.value)} disabled={busy} /></label>
-      <label className="field">Prepared feature archive<input key={saved?.id || 'file'} id="dataset-upload" type="file" accept=".npz,application/zip"
-        required onChange={(event) => setFile(event.target.files[0] || null)} disabled={busy} /></label>
-      <button className="button primary" disabled={busy || !file || !name.trim()}><FileUp size={16} />
-        {busy ? 'Validating and saving…' : 'Validate and create version'}</button>
+      <div className="source-picker" role="group" aria-label="Dataset archive source">
+        <button type="button" className={`button ${sourceMode === 'file' ? 'primary' : 'secondary'}`}
+          aria-pressed={sourceMode === 'file'} onClick={() => setSourceMode('file')} disabled={busy}><FileUp size={15} />Upload file</button>
+        <button type="button" className={`button ${sourceMode === 'link' ? 'primary' : 'secondary'}`}
+          aria-pressed={sourceMode === 'link'} onClick={() => setSourceMode('link')} disabled={busy}><Database size={15} />Import from link</button>
+      </div>
+      {sourceMode === 'file'
+        ? <label className="field">Prepared EEG feature archive<input key={saved?.id || 'file'} id="dataset-upload" type="file" accept=".npz,application/zip"
+          required onChange={(event) => setFile(event.target.files[0] || null)} disabled={busy} /></label>
+        : <label className="field">Direct public HTTPS link to the prepared archive<input id="dataset-url" type="url" inputMode="url"
+          maxLength={2048} placeholder="https://host.example/path/sleep_features.npz" value={url} required
+          onChange={(event) => setUrl(event.target.value)} disabled={busy} />
+          <span className="source-hint">The link must be reachable without sign-in. Maximum download size {maxUploadBytes / 1024 ** 2} MiB.</span></label>}
+      <button className="button primary" disabled={busy || !name.trim() ||
+        (sourceMode === 'file' ? !file : !url.trim())}><FileUp size={16} />
+        {busy ? (sourceMode === 'file' ? 'Validating and saving…' : 'Downloading and validating…')
+          : sourceMode === 'file' ? 'Validate and create version' : 'Import, validate, and create version'}</button>
     </form>
-    <p className="data-caption">Based on {version.name} · maximum upload {maxUploadBytes / 1024 ** 2} MiB</p>
+    <p className="data-caption">Based on {version.name} · maximum archive size {maxUploadBytes / 1024 ** 2} MiB</p>
     <a className="data-link" href="https://github.com/adam12bT/deepecg/blob/sleepops/Sleep_EDF_Wake_Up_Prediction_Colab.ipynb"
       target="_blank" rel="noreferrer">Open the EEG preprocessing notebook</a>
     <a className="data-link" href="https://github.com/adam12bT/deepecg/blob/sleepops/Sleep_Stage_Awakening_Training_Colab.ipynb"

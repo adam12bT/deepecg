@@ -13,7 +13,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 from deploy.training_space.app import default_catalog, default_trainer, make_app
-from deploy.training_space.datasets import MAX_UPLOAD, chart_metadata
+from deploy.training_space.datasets import DatasetTooLarge, MAX_UPLOAD, chart_metadata
 from deploy.training_space.models import READ_ERRORS, check_checkpoint, comparison, details, metric
 from deploy.training_space.promotion import PromotionQueue
 from eeg_data import CLASS_LABELS, EPOCH_SEC, FEATURE_NAMES, HISTORY, STAGE_NAMES
@@ -208,13 +208,22 @@ def create_app(trainer, catalog, dist):
 
     @app.post("/api/admin/datasets", status_code=201)
     def add_dataset(parent: Annotated[str, Form(pattern=r"^(base|[0-9a-f]{64})$")],
-                    name: Annotated[str, Form(max_length=80)], file: Annotated[UploadFile, File()]):
-        if not (file.filename or "").lower().endswith(".npz"):
+                    name: Annotated[str, Form(max_length=80)],
+                    file: Annotated[UploadFile | None, File()] = None,
+                    url: Annotated[str | None, Form(max_length=2048)] = None):
+        has_url = bool((url or "").strip())
+        if (file is None and not has_url) or (file is not None and has_url):
+            raise HTTPException(422, "Choose one prepared archive file or one direct HTTPS link.")
+        if file is not None and not (file.filename or "").lower().endswith(".npz"):
             raise HTTPException(422, "Upload a prepared EEG feature archive in NPZ format.")
-        if file.size is not None and file.size > MAX_UPLOAD:
+        if file is not None and file.size is not None and file.size > MAX_UPLOAD:
             raise HTTPException(413, "The upload exceeds 24 MiB.")
         try:
-            return trainer.datasets.add(parent, name, file.file)
+            if file is not None:
+                return trainer.datasets.add(parent, name, file.file)
+            return trainer.datasets.add_url(parent, name, url)
+        except DatasetTooLarge as error:
+            raise HTTPException(413, str(error)) from None
         except ValueError as error:
             raise HTTPException(422, str(error)) from None
         except (AssertionError, KeyError, TypeError, IndexError, OverflowError):
